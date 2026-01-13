@@ -6,7 +6,7 @@ app.use(cors({ origin: true, credentials: true }));
 
 // Seed an initial admin user so the frontend can login and see users immediately
 let users = [
-  { id: 1, name: 'Admin', email: 'admin@local', role: 'Admin', password: 'pass' },
+  { id: 1, name: 'Memona', email: 'memona@hrmis.com', role: 'Admin', password: 'password123' },
 ];
 let leaves = [];
 let tasks = [];
