@@ -1,56 +1,74 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import api, { setSessionExpiredCallback, setAccessToken, getAccessToken } from './api';
+import api, { setSessionExpiredCallback, setAccessToken } from './api';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [accessTokenState, setAccessTokenState] = useState(null);
+  // Initialize state from localStorage to persist across refreshes
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('hrmis_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
 
-  // keep both the state and the module-level token in sync
+  const [accessTokenState, setAccessTokenState] = useState(() => {
+    return localStorage.getItem('hrmis_token') || null;
+  });
+
+  // Sync with API module and localStorage whenever auth state changes
   useEffect(() => {
     setAccessToken(accessTokenState);
-    // Expose current auth to window for quick debugging in dev
-    try {
-      // eslint-disable-next-line no-undef
-      if (typeof window !== 'undefined') window.__auth = { user: user ?? null, accessToken: accessTokenState };
-    } catch (e) {
-      // ignore
+    if (accessTokenState) {
+      localStorage.setItem('hrmis_token', accessTokenState);
+    } else {
+      localStorage.removeItem('hrmis_token');
     }
   }, [accessTokenState]);
 
-  // try rehydrate using refresh endpoint on mount
   useEffect(() => {
-    (async () => {
+    if (user) {
+      localStorage.setItem('hrmis_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('hrmis_user');
+    }
+  }, [user]);
+
+  // Optional: Verify session with backend on mount
+  useEffect(() => {
+    const verifySession = async () => {
+      if (!accessTokenState) return;
       try {
+        // Try refreshing or getting profile to ensure token is still valid
         const res = await api.post('/auth/refresh');
         if (res?.data?.accessToken) {
           setAccessTokenState(res.data.accessToken);
-          setUser(res.data.user ?? null);
+          if (res.data.user) setUser(res.data.user);
         }
       } catch (e) {
-        // ignore
+        console.warn('Session verification failed, logging out...');
+        logout();
       }
-    })();
+    };
 
-    // Register callback for when api interceptor fails to refresh
+    verifySession();
+
+    // Handle expired sessions (401 errors from API)
     setSessionExpiredCallback(() => {
-      setAccessTokenState(null);
-      setUser(null);
+      logout();
     });
   }, []);
 
   const login = async (credentials) => {
     const res = await api.post('/auth/login', credentials);
     const token = res.data.accessToken ?? null;
+    const userData = res.data.user ?? null;
+
     setAccessTokenState(token);
-    setUser(res.data.user ?? null);
+    setUser(userData);
     return res.data;
   };
 
   const registerUser = async (payload) => {
     const res = await api.post('/auth/register', payload);
-    // may return token+user or just a message
     if (res.data.accessToken) {
       setAccessTokenState(res.data.accessToken);
       setUser(res.data.user ?? null);
@@ -66,14 +84,23 @@ export const AuthProvider = ({ children }) => {
     }
     setAccessTokenState(null);
     setUser(null);
+    localStorage.removeItem('hrmis_token');
+    localStorage.removeItem('hrmis_user');
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, accessToken: accessTokenState, setAccessToken: setAccessTokenState, login, registerUser, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      setUser,
+      accessToken: accessTokenState,
+      setAccessToken: setAccessTokenState,
+      login,
+      registerUser,
+      logout
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
-//           <LoginForm />

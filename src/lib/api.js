@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Token storage (moved here to avoid circular dependency with auth.js)
-let accessToken = null;
+// Token storage
+let accessToken = typeof window !== 'undefined' ? localStorage.getItem('hrmis_token') : null;
 export const getAccessToken = () => accessToken;
 export const setAccessToken = (t) => { accessToken = t; };
 
