@@ -1,0 +1,232 @@
+const express = require('express');
+const cors = require('cors');
+const app = express();
+app.use(express.json());
+app.use(cors({ origin: true, credentials: true }));
+
+// Seed an initial admin user so the frontend can login and see users immediately
+let users = [
+  { id: 1, name: 'Admin', email: 'admin@local', role: 'Admin', password: 'pass' },
+];
+let leaves = [];
+let tasks = [];
+
+// Helpful GET for humans who open the URL in a browser
+app.get('/auth/register', (req, res) => {
+  return res.send('This endpoint accepts POST requests with JSON {name,email,password}. Use the frontend form or POST with curl/Postman.');
+});
+
+app.post('/auth/register', (req, res) => {
+  const { name, email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+  const exists = users.find(u => u.email === email);
+  if (exists) return res.status(409).json({ message: 'User already exists' });
+  const user = { id: users.length + 1, name, email, role: 'Employee' };
+  users.push({ ...user, password });
+  return res.status(201).json({ accessToken: 'mock-token', user });
+});
+
+app.post('/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  const u = users.find(x => x.email === email && x.password === password);
+  if (!u) return res.status(401).json({ message: 'Invalid credentials' });
+  return res.json({ accessToken: 'mock-token', user: { id: u.id, name: u.name, email: u.email, role: u.role } });
+});
+
+// USERS endpoints
+app.get('/users', (req, res) => {
+  const { q, role } = req.query;
+  let out = users.slice();
+  if (q) {
+    const ql = q.toLowerCase();
+    out = out.filter(u => (u.name && u.name.toLowerCase().includes(ql)) || (u.email && u.email.toLowerCase().includes(ql)));
+  }
+  if (role) out = out.filter(u => u.role === role);
+  return res.json(out.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role })));
+});
+
+app.post('/users', (req, res) => {
+  console.log('POST /users', req.body);
+  const { name, email, password, role } = req.body;
+  if (!email || !name) return res.status(400).json({ message: 'Name and email required' });
+  const exists = users.find(u => u.email === email);
+  if (exists) return res.status(409).json({ message: 'User already exists' });
+  const id = users.length + 1;
+  const u = { id, name, email, role: role || 'Employee', password: password || 'pass' };
+  users.push(u);
+  return res.status(201).json({ id: u.id, name: u.name, email: u.email, role: u.role });
+});
+
+app.get('/users/:id', (req, res) => {
+  const u = users.find(x => String(x.id) === String(req.params.id));
+  if (!u) return res.status(404).json({ message: 'Not found' });
+  return res.json({ id: u.id, name: u.name, email: u.email, role: u.role });
+});
+
+app.put('/users/:id', (req, res) => {
+  console.log('PUT /users/:id', req.params.id, req.body);
+  const idx = users.findIndex(x => String(x.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ message: 'Not found' });
+  users[idx] = { ...users[idx], ...req.body };
+  return res.json({ id: users[idx].id, name: users[idx].name, email: users[idx].email, role: users[idx].role });
+});
+
+app.delete('/users/:id', (req, res) => {
+  console.log('DELETE /users/:id', req.params.id);
+  const idx = users.findIndex(x => String(x.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ message: 'Not found' });
+  users.splice(idx, 1);
+  return res.json({ message: 'Deleted' });
+});
+
+app.get('/users/email/:email', (req, res) => {
+  const u = users.find(x => x.email === req.params.email);
+  if (!u) return res.status(404).json({ message: 'Not found' });
+  return res.json({ id: u.id, name: u.name, email: u.email, role: u.role });
+});
+
+// simple profile endpoint: if Authorization Bearer mock-token present, return first user; else 401
+app.get('/users/profile', (req, res) => {
+  const auth = req.headers.authorization || '';
+  if (!auth.includes('mock-token')) return res.status(401).json({ message: 'Unauthorized' });
+  const u = users[0] || null;
+  if (!u) return res.status(404).json({ message: 'No users' });
+  return res.json({ id: u.id, name: u.name, email: u.email, role: u.role });
+});
+
+app.post('/auth/refresh', (req, res) => {
+  return res.json({ accessToken: 'mock-token' });
+});
+
+app.post('/auth/logout', (req, res) => {
+  return res.json({ message: 'Logged out' });
+});
+
+app.get('/leaves', (req, res) => {
+  const { status, userId } = req.query;
+  let out = leaves.slice();
+  if (status) out = out.filter(l => l.status === status);
+  if (userId) out = out.filter(l => String(l.userId) === String(userId));
+  return res.json(out);
+});
+
+app.post('/leaves', (req, res) => {
+  console.log('POST /leaves', req.body);
+  const { startDate, endDate, reason } = req.body;
+  if (!startDate || !endDate || !reason) return res.status(400).json({ message: 'Missing fields' });
+  const id = leaves.length + 1;
+  // Allow client to provide `userId` (frontend includes current user's id).
+  const newLeave = { id, userId: req.body.userId || 1, startDate, endDate, reason, status: 'Pending' };
+  leaves.push(newLeave);
+  return res.status(201).json(newLeave);
+});
+
+app.get('/leaves/:id', (req, res) => {
+  const l = leaves.find(x => String(x.id) === String(req.params.id));
+  if (!l) return res.status(404).json({ message: 'Not found' });
+  return res.json(l);
+});
+
+app.put('/leaves/:id', (req, res) => {
+  console.log('PUT /leaves/:id', req.params.id, req.body);
+  const idx = leaves.findIndex(x => String(x.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ message: 'Not found' });
+  // merge fields
+  leaves[idx] = { ...leaves[idx], ...req.body };
+  return res.json(leaves[idx]);
+});
+
+app.delete('/leaves/:id', (req, res) => {
+  console.log('DELETE /leaves/:id', req.params.id);
+  const idx = leaves.findIndex(x => String(x.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ message: 'Not found' });
+  leaves.splice(idx, 1);
+  return res.json({ message: 'Deleted' });
+});
+
+// GET leaves for a specific user and optional status
+function sendUserLeaves(req, res, statusParam) {
+  const id = req.params.id;
+  let out = leaves.filter(l => String(l.userId) === String(id));
+  if (statusParam) {
+    const normalized = statusParam[0].toUpperCase() + statusParam.slice(1).toLowerCase();
+    out = out.filter(l => l.status === normalized);
+  }
+  return res.json(out);
+}
+
+app.get('/leaves/user/:id', (req, res) => {
+  return sendUserLeaves(req, res, null);
+});
+
+app.get('/leaves/user/:id/:status', (req, res) => {
+  return sendUserLeaves(req, res, req.params.status);
+});
+
+// TASKS endpoints (in-memory)
+app.get('/tasks', (req, res) => {
+  const { status, assignee } = req.query;
+  let out = tasks.slice();
+  if (status) out = out.filter(t => t.status === status);
+  if (assignee) out = out.filter(t => String(t.assignee) === String(assignee));
+  return res.json(out);
+});
+
+app.post('/tasks', (req, res) => {
+  console.log('POST /tasks', req.body);
+  const { title, description, priority, status: st, assignee } = req.body;
+  if (!title) return res.status(400).json({ message: 'Title required' });
+  const id = tasks.length + 1;
+  const t = { id, title, description: description || '', priority: priority || 'Medium', status: st || 'Todo', assignee: assignee || null };
+  tasks.push(t);
+  return res.status(201).json(t);
+});
+
+app.get('/tasks/:id', (req, res) => {
+  const t = tasks.find(x => String(x.id) === String(req.params.id));
+  if (!t) return res.status(404).json({ message: 'Not found' });
+  return res.json(t);
+});
+
+app.put('/tasks/:id', (req, res) => {
+  console.log('PUT /tasks/:id', req.params.id, req.body);
+  const idx = tasks.findIndex(x => String(x.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ message: 'Not found' });
+  tasks[idx] = { ...tasks[idx], ...req.body };
+  return res.json(tasks[idx]);
+});
+
+app.delete('/tasks/:id', (req, res) => {
+  console.log('DELETE /tasks/:id', req.params.id);
+  const idx = tasks.findIndex(x => String(x.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ message: 'Not found' });
+  tasks.splice(idx, 1);
+  return res.json({ message: 'Deleted' });
+});
+
+const port = 4000;
+app.listen(port, () => console.log(`Mock server listening on http://localhost:${port}`));
+
+// Helpful root page to show available endpoints and current data
+app.get('/', (req, res) => {
+  res.send(`
+    <html><body>
+      <h2>Mock Server Running</h2>
+      <p>Available endpoints:</p>
+      <ul>
+        <li>POST /auth/register</li>
+        <li>POST /auth/login</li>
+        <li>POST /auth/refresh</li>
+        <li>POST /auth/logout</li>
+        <li>GET /leaves</li>
+        <li>POST /leaves</li>
+        <li>GET /leaves/:id</li>
+        <li>PUT /leaves/:id</li>
+        <li>DELETE /leaves/:id</li>
+        <li>GET /leaves/user/:id[/status]</li>
+      </ul>
+      <h3>In-memory leaves</h3>
+      <pre>${JSON.stringify(leaves, null, 2)}</pre>
+    </body></html>
+  `);
+});

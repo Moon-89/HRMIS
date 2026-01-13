@@ -9,7 +9,11 @@ In the project directory, you can run:
 ### `npm start`
 
 Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Open [http://localhost:3000](http://localhost:4000) to view it in your browser.
+
+Environment / API setup
+- Copy `.env.example` to `.env` and set `REACT_APP_API_URL` to your backend base URL (for example `http://localhost:4000`).
+- Alternatively, set a dev proxy in `package.json` (example: `"proxy": "http://localhost:4000"`) so relative requests are forwarded to your backend during development.
 
 The page will reload when you make changes.\
 You may also see any lint errors in the console.
