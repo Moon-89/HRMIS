@@ -190,14 +190,34 @@ app.get('/leaves/:id', (req, res) => {
   return res.json({ ...l, user: u ? { name: u.name, email: u.email } : null });
 });
 
+// app.put('/leaves/:id', (req, res) => {
+//   console.log('PUT /leaves/:id', req.params.id, req.body);
+//   const idx = leaves.findIndex(x => String(x.id) === String(req.params.id));
+//   if (idx === -1) return res.status(404).json({ message: 'Not found' });
+//   // merge fields
+//   leaves[idx] = { ...leaves[idx], ...req.body, updatedAt: new Date().toISOString() };
+//   return res.json(leaves[idx]);
+// });
 app.put('/leaves/:id', (req, res) => {
   console.log('PUT /leaves/:id', req.params.id, req.body);
   const idx = leaves.findIndex(x => String(x.id) === String(req.params.id));
   if (idx === -1) return res.status(404).json({ message: 'Not found' });
+
+  const leave = leaves[idx];
+  const userIdFromClient = req.body.userId;
+
+  // ✅ Only allow if the user is the owner of the leave
+  if (String(leave.userId) !== String(userIdFromClient)) {
+    return res.status(403).json({ message: 'Access Denied: You can only edit your own leave.' });
+  }
+
   // merge fields
-  leaves[idx] = { ...leaves[idx], ...req.body, updatedAt: new Date().toISOString() };
+  leaves[idx] = { ...leave, ...req.body, updatedAt: new Date().toISOString() };
   return res.json(leaves[idx]);
 });
+
+
+
 
 app.delete('/leaves/:id', (req, res) => {
   console.log('DELETE /leaves/:id', req.params.id);

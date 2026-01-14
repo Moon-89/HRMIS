@@ -14,8 +14,9 @@ export default function LoginForm() {
       await login(data);
       navigate('/dashboard');
     } catch (error) {
-      console.error(error);
-      toast.error('Invalid credentials');
+      console.error('Login error:', error);
+      const msg = error?.response?.data?.message || error?.message || 'Login failed';
+      toast.error(msg);
     }
   };
 

@@ -11,135 +11,204 @@ export default function LeaveDetail() {
   const qc = useQueryClient();
   const { user } = useAuth();
 
-  // Failsafe: if email is memona@hrmis.com, treat as Admin
-  const isMemonaAdmin = user?.email?.toLowerCase()?.trim() === 'memona@hrmis.com' || user?.email?.toLowerCase()?.trim() === 'memona@hrmis';
+  // Role handling
+  const isMemonaAdmin =
+    user?.email?.toLowerCase()?.trim() === 'memona@hrmis.com' ||
+    user?.email?.toLowerCase()?.trim() === 'memona@hrmis';
   const displayRole = isMemonaAdmin ? 'Admin' : (user?.role || 'Employee');
-  const isAdminOrManager = displayRole.toLowerCase() === 'admin' || displayRole.toLowerCase() === 'manager';
+  const isAdminOrManager =
+    displayRole.toLowerCase() === 'admin' || displayRole.toLowerCase() === 'manager';
 
-  const { data, isLoading } = useQuery(['leave', id], async () => {
+  const { data: leave, isLoading, isError } = useQuery(['leave', id], async () => {
     const res = await api.get(`/leaves/${id}`);
     return res.data;
+  }, {
+    retry: 1,
+    onError: () => toast.error('Leave request not found')
   });
 
   const del = useMutation(async () => {
     await api.delete(`/leaves/${id}`);
-  }, { onSuccess: () => qc.invalidateQueries('leaves') });
+  }, {
+    onSuccess: () => {
+      qc.invalidateQueries('leaves');
+      toast.success('Leave request deleted successfully');
+      navigate('/leaves');
+    }
+  });
 
   const updateStatus = useMutation(async (status) => {
     await api.put(`/leaves/${id}`, { status });
-  }, { onSuccess: () => qc.invalidateQueries('leaves') });
+  }, {
+    onSuccess: () => {
+      qc.invalidateQueries(['leave', id]);
+      qc.invalidateQueries('leaves');
+    }
+  });
 
-  if (isLoading) return <div>Loading...</div>;
-  const leave = data;
+  if (isLoading) return (
+    <div className="flex justify-center items-center h-screen -mt-24">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+    </div>
+  );
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this leave?')) return;
+  if (isError || !leave) return (
+    <div className="max-w-7xl mx-auto px-4 py-12 text-center">
+      <h2 className="text-2xl font-bold text-gray-900">Leave request not found</h2>
+      <button
+        onClick={() => navigate('/leaves')}
+        className="mt-4 text-indigo-600 hover:text-indigo-500 font-medium"
+      >
+        Go back to leaves
+      </button>
+    </div>
+  );
+
+  const handleStatusChange = async (newStatus) => {
     try {
-      await del.mutateAsync();
-      toast.success('Leave deleted');
-      navigate('/leaves');
+      await updateStatus.mutateAsync(newStatus);
+      toast.success(`Leave status updated to ${newStatus}`);
     } catch (e) {
-      toast.error('Delete failed');
+      toast.error('Failed to update status');
     }
   };
 
-  const handleApprove = async () => {
-    try {
-      await updateStatus.mutateAsync('Approved');
-      toast.success('Leave approved');
-    } catch (e) { toast.error('Failed to approve'); }
-  };
-  const handleReject = async () => {
-    try {
-      await updateStatus.mutateAsync('Rejected');
-      toast.success('Leave rejected');
-    } catch (e) { toast.error('Failed to reject'); }
+  const statusColors = {
+    'Approved': 'bg-green-100 text-green-800 border-green-200',
+    'Rejected': 'bg-red-100 text-red-800 border-red-200',
+    'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-200'
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-          <h2 className="text-xl leading-6 font-bold text-gray-900">Leave Request Details</h2>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">ID: {leave.id}</p>
-        </div>
-        <div className="px-4 py-5 sm:p-6 space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-6 flex items-center gap-2">
+        <button
+          onClick={() => navigate('/leaves')}
+          className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center gap-1"
+        >
+          ← Back to Leaves
+        </button>
+      </div>
+
+      <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+        <div className="px-6 py-8 sm:px-8 border-b border-gray-100 bg-gray-50/50">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <dt className="text-sm font-medium text-gray-500">User</dt>
-              <dd className="mt-1 text-sm text-gray-900 font-semibold">{leave.user?.name ?? leave.userId}</dd>
+              <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Leave Request Details</h1>
+              <p className="mt-1 text-sm text-gray-500">Request ID: <span className="font-mono">{leave.id}</span></p>
             </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-500">Status</dt>
-              <dd className="mt-1">
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${leave.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                  leave.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
-                  {leave.status}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-500">From</dt>
-              <dd className="mt-1 text-sm text-gray-900">{leave.startDate}</dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-500">To</dt>
-              <dd className="mt-1 text-sm text-gray-900">{leave.endDate}</dd>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-4 border-t border-gray-50">
-            <div>
-              <dt className="text-sm font-medium text-gray-400">Requested At</dt>
-              <dd className="mt-1 text-xs text-gray-500 font-medium">
-                {leave.createdAt ? new Date(leave.createdAt).toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-gray-400">Last Modified</dt>
-              <dd className="mt-1 text-xs text-gray-500 font-medium">
-                {leave.updatedAt ? new Date(leave.updatedAt).toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
-              </dd>
-            </div>
-          </div>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">Reason</dt>
-            <dd className="mt-1 text-sm text-gray-900 bg-gray-50 p-3 rounded-md border border-gray-100">{leave.reason}</dd>
+            <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border ${statusColors[leave.status] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+              {leave.status}
+            </span>
           </div>
         </div>
-        <div className="px-4 py-4 sm:px-6 bg-gray-50 flex flex-wrap gap-3">
-          {isAdminOrManager && (
-            <>
+
+        <div className="px-6 py-8 sm:px-8 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest leading-loose">Employee</label>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg">
+                  {leave.user?.name?.charAt(0) || 'U'}
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-900 leading-none">{leave.user?.name ?? `User #${leave.userId}`}</p>
+                  <p className="text-sm text-gray-500 mt-1">{leave.user?.email || 'No email provided'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest leading-loose">Request Timeline</label>
+              <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <div className="text-center">
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Start Date</p>
+                  <p className="text-sm font-bold text-gray-900">{leave.startDate}</p>
+                </div>
+                <div className="flex-1 h-px bg-gray-200 relative">
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-gray-300"></div>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-semibold text-gray-500 uppercase">End Date</p>
+                  <p className="text-sm font-bold text-gray-900">{leave.endDate}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-widest leading-loose">Reason for Leave</label>
+            <div className="bg-white p-6 rounded-2xl border-2 border-gray-50 text-gray-700 leading-relaxed italic shadow-inner">
+              "{leave.reason}"
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Submitted On</p>
+              <p className="text-sm font-semibold text-gray-700 mt-1">
+                {leave.createdAt ? new Date(leave.createdAt).toLocaleString('en-US', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Last Activity</p>
+              <p className="text-sm font-semibold text-gray-700 mt-1">
+                {leave.updatedAt ? new Date(leave.updatedAt).toLocaleString('en-US', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-6 sm:px-8 bg-gray-50 flex flex-col sm:flex-row gap-4 justify-between border-t border-gray-100">
+          {isAdminOrManager ? (
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => handleStatusChange('Approved')}
+                disabled={updateStatus.isLoading}
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 transition-all shadow-lg shadow-green-200 disabled:opacity-50"
+              >
+                Approve Request
+              </button>
+              <button
+                onClick={() => handleStatusChange('Rejected')}
+                disabled={updateStatus.isLoading}
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-all shadow-lg shadow-red-200 disabled:opacity-50"
+              >
+                Reject Request
+              </button>
+              <button
+                onClick={() => handleStatusChange('Pending')}
+                disabled={updateStatus.isLoading}
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-sm font-bold text-yellow-800 bg-yellow-400 hover:bg-yellow-500 transition-all shadow-lg shadow-yellow-200 disabled:opacity-50"
+              >
+                Set Pending
+              </button>
+            </div>
+          ) : (user?.id === leave.userId) && (
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
               <button
                 onClick={() => navigate(`/leaves/${leave.id}/edit`)}
-                className="inline-flex justify-center py-2 px-6 border border-amber-300 shadow-sm text-sm font-bold rounded-lg text-amber-700 bg-white hover:bg-amber-50 transition-all font-bold"
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-sm font-bold text-indigo-700 bg-white border-2 border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm"
               >
-                Edit Details
+                Edit Request
               </button>
               <button
-                onClick={handleDelete}
-                className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-bold rounded-lg text-white bg-red-600 hover:bg-red-700 transition-all"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this leave request?')) {
+                    del.mutate();
+                  }
+                }}
+                disabled={del.isLoading}
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 transition-all shadow-lg shadow-red-200"
               >
-                Delete Request
+                Cancel / Delete
               </button>
-
-              <div className="flex-1 min-w-[10px]"></div>
-
-              <button
-                onClick={handleApprove}
-                className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-bold rounded-lg text-white bg-green-600 hover:bg-green-700 transition-all transform hover:scale-105"
-              >
-                Approve Leave
-              </button>
-              <button
-                onClick={handleReject}
-                className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-bold rounded-lg text-white bg-rose-600 hover:bg-rose-700 transition-all transform hover:scale-105"
-              >
-                Reject Leave
-              </button>
-            </>
+            </div>
           )}
+
+          <div className="sm:ml-auto">
+            {/* Additional info or small placeholder */}
+          </div>
         </div>
       </div>
     </div>
