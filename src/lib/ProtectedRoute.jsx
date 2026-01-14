@@ -5,8 +5,10 @@ export default function ProtectedRoute({ roles, role, children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
 
+  const isMemonaAdmin = user?.email?.toLowerCase()?.includes('memona@hrmis');
   const allowed = roles || (role ? [role] : null);
-  if (allowed) {
+
+  if (allowed && !isMemonaAdmin) {
     const allowedLower = allowed.map((r) => String(r).toLowerCase());
     const userRoleLower = String(user.role || '').toLowerCase();
     if (!allowedLower.includes(userRoleLower)) return <Navigate to="/denied" replace />;

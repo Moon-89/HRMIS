@@ -4,12 +4,27 @@ const app = express();
 app.use(express.json());
 app.use(cors({ origin: true, credentials: true }));
 
-// Seed an initial admin user so the frontend can login and see users immediately
+// Helper to check for admin emails
+const isAdminEmail = (email) => {
+  if (!email) return false;
+  const normalized = email.toLowerCase().trim();
+  return normalized === 'memona@hrmis.com' || normalized === 'memona@hrmis';
+};
+
+const nowTime = new Date();
+const hoursAgo = (h) => new Date(nowTime.getTime() - h * 60 * 60 * 1000).toISOString();
+
+// Seed initial users
 let users = [
-  { id: 1, name: 'Memona', email: 'memona@hrmis.com', role: 'Admin', password: 'password123' },
+  { id: 1, name: 'Memona Admin', email: 'memona@hrmis.com', role: 'Admin', password: 'password123' }
 ];
-let leaves = [];
-let tasks = [];
+let leaves = [
+  { id: 1, userId: 1, startDate: '2026-01-15', endDate: '2026-01-18', reason: 'Family Visit', status: 'Pending', createdAt: hoursAgo(10), updatedAt: hoursAgo(10) },
+];
+let tasks = [
+  { id: 1, title: 'Review Annual Reports', description: 'Check HR metrics', priority: 'High', status: 'InProgress', assignee: 1, createdAt: hoursAgo(24), updatedAt: hoursAgo(14) },
+  { id: 3, title: 'Team Meeting Minutes', description: 'Draft summary', priority: 'Medium', status: 'Done', assignee: 1, createdAt: hoursAgo(4), updatedAt: hoursAgo(1) }
+];
 
 // Helpful GET for humans who open the URL in a browser
 app.get('/auth/register', (req, res) => {
@@ -19,18 +34,42 @@ app.get('/auth/register', (req, res) => {
 app.post('/auth/register', (req, res) => {
   const { name, email, password } = req.body;
   if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
-  const exists = users.find(u => u.email === email);
+  const normalizedEmail = email.toLowerCase().trim();
+  const exists = users.find(u => u.email.toLowerCase().trim() === normalizedEmail);
   if (exists) return res.status(409).json({ message: 'User already exists' });
-  const user = { id: users.length + 1, name, email, role: 'Employee' };
+
+  // Force Admin for Memona
+  const role = isAdminEmail(normalizedEmail) ? 'Admin' : 'Employee';
+
+  const user = { id: users.length + 1, name, email: normalizedEmail, role };
   users.push({ ...user, password });
-  return res.status(201).json({ accessToken: 'mock-token', user });
+  return res.status(201).json({ accessToken: `mock-token-${user.id}`, user });
 });
 
 app.post('/auth/login', (req, res) => {
   const { email, password } = req.body;
-  const u = users.find(x => x.email === email && x.password === password);
-  if (!u) return res.status(401).json({ message: 'Invalid credentials' });
-  return res.json({ accessToken: 'mock-token', user: { id: u.id, name: u.name, email: u.email, role: u.role } });
+  if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+
+  const normalizedEmail = email.toLowerCase().trim();
+  console.log(`Login Attempt - Email: [${normalizedEmail}], Password: [${password}]`);
+
+  // Find user
+  const u = users.find(x => x.email.toLowerCase().trim() === normalizedEmail);
+
+  if (!u || u.password !== password) {
+    // Special shortcut for Memona to ensure she is never blocked
+    if (isAdminEmail(normalizedEmail) && password === 'password123') {
+      const user = { id: 1, name: 'Memona', email: 'memona@hrmis.com', role: 'Admin' };
+      return res.json({ accessToken: `mock-token-1`, user });
+    }
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+
+  // Force Admin for Memona
+  const role = isAdminEmail(normalizedEmail) ? 'Admin' : u.role;
+  const userData = { id: u.id, name: u.name, email: u.email, role: role };
+
+  return res.json({ accessToken: `mock-token-${u.id}`, user: userData });
 });
 
 // USERS endpoints
@@ -85,17 +124,32 @@ app.get('/users/email/:email', (req, res) => {
   return res.json({ id: u.id, name: u.name, email: u.email, role: u.role });
 });
 
-// simple profile endpoint: if Authorization Bearer mock-token present, return first user; else 401
+// profile endpoint: extracts ID from token
 app.get('/users/profile', (req, res) => {
   const auth = req.headers.authorization || '';
-  if (!auth.includes('mock-token')) return res.status(401).json({ message: 'Unauthorized' });
-  const u = users[0] || null;
-  if (!u) return res.status(404).json({ message: 'No users' });
-  return res.json({ id: u.id, name: u.name, email: u.email, role: u.role });
+  const match = auth.match(/mock-token-(\d+)/);
+  if (!match) return res.status(401).json({ message: 'Unauthorized' });
+  const userId = match[1];
+  const u = users.find(x => String(x.id) === String(userId));
+  if (!u) return res.status(404).json({ message: 'User not found' });
+
+  // Force Admin for Memona
+  const role = isAdminEmail(u.email) ? 'Admin' : u.role;
+  return res.json({ id: u.id, name: u.name, email: u.email, role: role });
 });
 
 app.post('/auth/refresh', (req, res) => {
-  return res.json({ accessToken: 'mock-token' });
+  const auth = req.headers.authorization || '';
+  const match = auth.match(/mock-token-(\d+)/);
+  if (!match) return res.status(401).json({ message: 'Missing token' });
+  const userId = match[1];
+  const u = users.find(x => String(x.id) === String(userId));
+  if (!u) return res.status(401).json({ message: 'Invalid user' });
+
+  const role = isAdminEmail(u.email) ? 'Admin' : u.role;
+  const userData = { id: u.id, name: u.name, email: u.email, role: role };
+
+  return res.json({ accessToken: `mock-token-${u.id}`, user: userData });
 });
 
 app.post('/auth/logout', (req, res) => {
@@ -107,7 +161,14 @@ app.get('/leaves', (req, res) => {
   let out = leaves.slice();
   if (status) out = out.filter(l => l.status === status);
   if (userId) out = out.filter(l => String(l.userId) === String(userId));
-  return res.json(out);
+
+  // Attach user details for admin/manager view
+  const results = out.map(l => {
+    const u = users.find(x => String(x.id) === String(l.userId));
+    return { ...l, user: u ? { name: u.name, email: u.email } : null };
+  });
+
+  return res.json(results);
 });
 
 app.post('/leaves', (req, res) => {
@@ -115,8 +176,9 @@ app.post('/leaves', (req, res) => {
   const { startDate, endDate, reason } = req.body;
   if (!startDate || !endDate || !reason) return res.status(400).json({ message: 'Missing fields' });
   const id = leaves.length + 1;
+  const now = new Date().toISOString();
   // Allow client to provide `userId` (frontend includes current user's id).
-  const newLeave = { id, userId: req.body.userId || 1, startDate, endDate, reason, status: 'Pending' };
+  const newLeave = { id, userId: req.body.userId || 1, startDate, endDate, reason, status: 'Pending', createdAt: now, updatedAt: now };
   leaves.push(newLeave);
   return res.status(201).json(newLeave);
 });
@@ -124,7 +186,8 @@ app.post('/leaves', (req, res) => {
 app.get('/leaves/:id', (req, res) => {
   const l = leaves.find(x => String(x.id) === String(req.params.id));
   if (!l) return res.status(404).json({ message: 'Not found' });
-  return res.json(l);
+  const u = users.find(x => String(x.id) === String(l.userId));
+  return res.json({ ...l, user: u ? { name: u.name, email: u.email } : null });
 });
 
 app.put('/leaves/:id', (req, res) => {
@@ -132,7 +195,7 @@ app.put('/leaves/:id', (req, res) => {
   const idx = leaves.findIndex(x => String(x.id) === String(req.params.id));
   if (idx === -1) return res.status(404).json({ message: 'Not found' });
   // merge fields
-  leaves[idx] = { ...leaves[idx], ...req.body };
+  leaves[idx] = { ...leaves[idx], ...req.body, updatedAt: new Date().toISOString() };
   return res.json(leaves[idx]);
 });
 
@@ -177,7 +240,8 @@ app.post('/tasks', (req, res) => {
   const { title, description, priority, status: st, assignee } = req.body;
   if (!title) return res.status(400).json({ message: 'Title required' });
   const id = tasks.length + 1;
-  const t = { id, title, description: description || '', priority: priority || 'Medium', status: st || 'Todo', assignee: assignee || null };
+  const now = new Date().toISOString();
+  const t = { id, title, description: description || '', priority: priority || 'Medium', status: st || 'Todo', assignee: assignee || null, createdAt: now, updatedAt: now };
   tasks.push(t);
   return res.status(201).json(t);
 });
@@ -192,7 +256,7 @@ app.put('/tasks/:id', (req, res) => {
   console.log('PUT /tasks/:id', req.params.id, req.body);
   const idx = tasks.findIndex(x => String(x.id) === String(req.params.id));
   if (idx === -1) return res.status(404).json({ message: 'Not found' });
-  tasks[idx] = { ...tasks[idx], ...req.body };
+  tasks[idx] = { ...tasks[idx], ...req.body, updatedAt: new Date().toISOString() };
   return res.json(tasks[idx]);
 });
 

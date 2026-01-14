@@ -3,8 +3,10 @@ import api from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from 'react-query';
 import { toast } from 'react-toastify';
+import { useAuth } from '../lib/auth';
 
 export default function LeaveForm() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [form, setForm] = useState({ startDate: '', endDate: '', reason: '' });
@@ -14,15 +16,16 @@ export default function LeaveForm() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      const payload = { ...form, userId: user?.id };
       console.log('API baseURL:', api.defaults?.baseURL);
       const fullUrl = (api.defaults?.baseURL || 'http://localhost:4000') + '/leaves';
       console.log('Posting to (full):', fullUrl);
-      console.log('Payload:', form);
+      console.log('Payload:', payload);
       // Use direct fetch to the mock server (avoid axios/dev-server interfering)
       const resp = await fetch(fullUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
         credentials: 'include',
       });
       const resBody = await resp.json().catch(() => null);

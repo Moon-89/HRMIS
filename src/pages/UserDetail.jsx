@@ -49,26 +49,26 @@ export default function UserDetail() {
           </dl>
         </div>
 
-        {currentUser?.role === 'Admin' && (
+        {(currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'manager' || currentUser?.email?.toLowerCase()?.includes('memona@hrmis')) && (
           <div className="px-4 py-4 sm:px-6 bg-gray-50 flex gap-3">
             <button
               onClick={() => navigate(`/users/${user.id}/edit`)}
-              className="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+              className="inline-flex justify-center py-2 px-6 border border-amber-300 shadow-sm text-sm font-bold rounded-lg text-amber-700 bg-white hover:bg-amber-50 transition-all transform hover:-translate-y-0.5"
             >
-              Edit
+              Edit Profile
             </button>
             <button
               onClick={async () => {
-                if (!window.confirm('Delete user?')) return;
+                if (!window.confirm('Are you sure you want to delete this user?')) return;
                 try {
                   await api.delete(`/users/${user.id}`);
-                  toast.success('User deleted');
+                  toast.success('User deleted successfully');
                   navigate('/users');
-                } catch (e) { toast.error('Delete failed'); }
+                } catch (e) { toast.error('Failed to delete user'); }
               }}
-              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors"
+              className="inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-bold rounded-lg text-white bg-red-600 hover:bg-red-700 transition-all transform hover:-translate-y-0.5"
             >
-              Delete
+              Delete User
             </button>
           </div>
         )}

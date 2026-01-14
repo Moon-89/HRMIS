@@ -7,13 +7,26 @@ import { toast } from 'react-toastify';
 
 export default function Leaves() {
   const { user } = useAuth();
-  const [statusFilter, setStatusFilter] = React.useState('');
-  const [mineOnly, setMineOnly] = React.useState(false);
 
-  const { data, isLoading, error, refetch } = useQuery(['leaves', { status: statusFilter, userId: mineOnly ? user?.id : undefined }], async () => {
+  // Failsafe: if email is memona@hrmis.com, treat as Admin
+  const isMemonaAdmin = user?.email?.toLowerCase()?.trim() === 'memona@hrmis.com' || user?.email?.toLowerCase()?.trim() === 'memona@hrmis';
+  const displayRole = isMemonaAdmin ? 'Admin' : (user?.role || 'Employee');
+  const isAdminOrManager = displayRole.toLowerCase() === 'admin' || displayRole.toLowerCase() === 'manager';
+
+  const canSeeAll = isAdminOrManager;
+  const [statusFilter, setStatusFilter] = React.useState('');
+  // For Employees, mineOnly is always true and cannot be changed
+  const [mineOnly, setMineOnly] = React.useState(!canSeeAll);
+
+  const { data, isLoading, error, refetch } = useQuery(['leaves', { status: statusFilter, userId: (mineOnly || !canSeeAll) ? user?.id : undefined }], async () => {
     const params = {};
     if (statusFilter) params.status = statusFilter;
-    if (mineOnly && user?.id) params.userId = user.id;
+
+    // Force current user ID if not admin/manager OR if mineOnly is checked
+    if (!canSeeAll || mineOnly) {
+      params.userId = user?.id;
+    }
+
     const res = await api.get('/leaves', { params });
     return res.data;
   });
@@ -55,15 +68,17 @@ export default function Leaves() {
             <option value="Rejected">Rejected</option>
           </select>
         </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={mineOnly}
-            onChange={(e) => setMineOnly(e.target.checked)}
-            className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-          />
-          <span className="text-sm font-medium text-gray-700">My leaves</span>
-        </label>
+        {canSeeAll && (
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={mineOnly}
+              onChange={(e) => setMineOnly(e.target.checked)}
+              className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            />
+            <span className="text-sm font-medium text-gray-700">My leaves</span>
+          </label>
+        )}
       </div>
 
       <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
@@ -90,13 +105,17 @@ export default function Leaves() {
                 <td className="px-6 py-4 whitespace-nowrap">{statusBadge(l.status)}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <Link to={`/leaves/${l.id}`} className="text-indigo-600 hover:text-indigo-900 mr-3">View</Link>
-                  <Link to={`/leaves/${l.id}/edit`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
-                  <button
-                    onClick={() => handleDelete(l.id)}
-                    className="text-red-600 hover:text-red-900 bg-transparent border-none cursor-pointer"
-                  >
-                    Delete
-                  </button>
+                  {(user?.role === 'Admin' || user?.role === 'Manager') && (
+                    <>
+                      <Link to={`/leaves/${l.id}/edit`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
+                      <button
+                        onClick={() => handleDelete(l.id)}
+                        className="text-red-600 hover:text-red-900 bg-transparent border-none cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}

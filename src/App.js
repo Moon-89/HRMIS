@@ -39,13 +39,15 @@ export default function App() {
               </div>
 
               <div className="hidden md:ml-10 md:flex md:space-x-4">
-                <Link to="/dashboard" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard')}`}>Dashboard</Link>
-                <Link to="/leaves" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/leaves')}`}>Leaves</Link>
                 {user && (
                   <>
+                    <Link to="/dashboard" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard')}`}>Dashboard</Link>
+                    <Link to="/leaves" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/leaves')}`}>Leaves</Link>
                     <Link to="/tasks" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/tasks')}`}>Tasks</Link>
-                    <Link to="/users" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/users')}`}>Users</Link>
                   </>
+                )}
+                {user && (user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'manager' || user.email?.toLowerCase()?.includes('memona@hrmis')) && (
+                  <Link to="/users" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/users')}`}>Users</Link>
                 )}
               </div>
             </div>
@@ -55,7 +57,9 @@ export default function App() {
                 <>
                   <div className="hidden md:flex flex-col items-end mr-2">
                     <span className="text-sm font-semibold text-gray-800">{user.name}</span>
-                    <span className="text-xs text-indigo-500 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">{user.role}</span>
+                    <span className="text-xs text-indigo-500 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
+                      {(user.email?.toLowerCase()?.includes('memona@hrmis') || user.role?.toLowerCase() === 'admin') ? 'Admin' : user.role}
+                    </span>
                   </div>
                   <Link to="/profile" className="p-1 rounded-full text-gray-400 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                     Profile
@@ -86,24 +90,24 @@ export default function App() {
 
           <Route path="/denied" element={<Denied />} />
 
-          <Route path="/dashboard" element={<ProtectedRoute role="Employee"> <Dashboard /> </ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute roles={["Admin", "Manager", "Employee"]}> <Dashboard /> </ProtectedRoute>} />
 
           <Route path="/admin" element={<ProtectedRoute role="Admin"> <AdminPanel /> </ProtectedRoute>} />
 
-          <Route path="/leaves" element={<ProtectedRoute roles={["Employee", "Manager", "Admin"]}> <Leaves /> </ProtectedRoute>} />
-          <Route path="/leaves/new" element={<ProtectedRoute role="Employee"> <LeaveForm /> </ProtectedRoute>} />
-          <Route path="/leaves/:id" element={<ProtectedRoute roles={["Employee", "Manager", "Admin"]}> <LeaveDetail /> </ProtectedRoute>} />
-          <Route path="/leaves/:id/edit" element={<ProtectedRoute roles={["Employee", "Admin", "Manager"]}> <EditLeave /> </ProtectedRoute>} />
-          <Route path="/tasks" element={<ProtectedRoute roles={["Employee", "Manager", "Admin"]}><Tasks /></ProtectedRoute>} />
-          <Route path="/tasks/new" element={<ProtectedRoute roles={["Employee", "Manager", "Admin"]}><TaskForm /></ProtectedRoute>} />
-          <Route path="/tasks/:id" element={<ProtectedRoute roles={["Employee", "Manager", "Admin"]}><TaskDetail /></ProtectedRoute>} />
-          <Route path="/tasks/:id/edit" element={<ProtectedRoute roles={["Employee", "Manager", "Admin"]}><EditTask /></ProtectedRoute>} />
+          <Route path="/leaves" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}> <Leaves /> </ProtectedRoute>} />
+          <Route path="/leaves/new" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}> <LeaveForm /> </ProtectedRoute>} />
+          <Route path="/leaves/:id" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}> <LeaveDetail /> </ProtectedRoute>} />
+          <Route path="/leaves/:id/edit" element={<ProtectedRoute roles={["Admin", "Manager"]}> <EditLeave /> </ProtectedRoute>} />
+          <Route path="/tasks" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}><Tasks /></ProtectedRoute>} />
+          <Route path="/tasks/new" element={<ProtectedRoute roles={["Manager", "Admin"]}><TaskForm /></ProtectedRoute>} />
+          <Route path="/tasks/:id" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}><TaskDetail /></ProtectedRoute>} />
+          <Route path="/tasks/:id/edit" element={<ProtectedRoute roles={["Admin", "Manager"]}><EditTask /></ProtectedRoute>} />
 
-          <Route path="/users" element={<ProtectedRoute roles={["Admin", "Manager", "Employee"]}><Users /></ProtectedRoute>} />
-          <Route path="/users/new" element={<ProtectedRoute role={"Admin"}><UserForm /></ProtectedRoute>} />
-          <Route path="/users/:id" element={<ProtectedRoute roles={["Admin", "Manager", "Employee"]}><UserDetail /></ProtectedRoute>} />
-          <Route path="/users/:id/edit" element={<ProtectedRoute role={"Admin"}><UserForm /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute roles={["Employee", "Manager", "Admin"]}><Profile /></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute roles={["Admin", "Manager"]}><Users /></ProtectedRoute>} />
+          <Route path="/users/new" element={<ProtectedRoute roles={["Admin", "Manager"]}><UserForm /></ProtectedRoute>} />
+          <Route path="/users/:id" element={<ProtectedRoute roles={["Admin", "Manager"]}><UserDetail /></ProtectedRoute>} />
+          <Route path="/users/:id/edit" element={<ProtectedRoute roles={["Admin", "Manager"]}><UserForm /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}><Profile /></ProtectedRoute>} />
         </Routes>
       </main>
     </>

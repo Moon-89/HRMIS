@@ -10,6 +10,13 @@ if (!process.env.REACT_APP_API_URL) {
   console.warn('REACT_APP_API_URL not set — falling back to', fallback);
 }
 
+export async function fetchActivities() {
+  const res = await fetch('/api/activities');
+  return res.json();
+}
+
+
+
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || fallback,
   withCredentials: true,
