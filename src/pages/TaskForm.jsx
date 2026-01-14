@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../lib/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useQueryClient, useQuery } from 'react-query';
 import { toast } from 'react-toastify';
 import { useAuth } from '../lib/auth';
@@ -12,10 +12,10 @@ export default function TaskForm() {
   const [form, setForm] = useState({ title: '', description: '', priority: 'Medium', status: 'Todo', assignee: '' });
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: usersData } = useQuery('users', async () => {
+  const { data: usersData, isLoading: loadingUsers } = useQuery('users', async () => {
     const res = await api.get('/users');
     return res.data;
-  });
+  }, { staleTime: 300000 });
 
   const users = Array.isArray(usersData) ? usersData : [];
 
@@ -23,10 +23,10 @@ export default function TaskForm() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      // If no assignee chosen, default to current user
       const payload = { ...form, assignee: form.assignee || currentUser?.id };
       await api.post('/tasks', payload);
       qc.invalidateQueries('tasks');
+      toast.success('Task successfully created!');
       navigate('/tasks');
     } catch (err) {
       console.error(err);
@@ -37,84 +37,84 @@ export default function TaskForm() {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900 border-b pb-4">New Task</h2>
-        <form onSubmit={onSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Title</label>
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="mb-8 flex items-center justify-between">
+        <Link to="/tasks" className="text-sm font-bold text-gray-400 hover:text-indigo-600 flex items-center gap-1 transition-colors">
+          ← Back to Board
+        </Link>
+        <h2 className="text-xl font-black text-gray-900 uppercase tracking-widest">New Mission</h2>
+      </div>
+
+      <div className="bg-white shadow-2xl rounded-[2rem] border border-gray-100 overflow-hidden transform transition-all">
+        <div className="bg-indigo-600 px-8 py-6">
+          <h3 className="text-2xl font-black text-white">Initiate New Task</h3>
+          <p className="text-indigo-100 text-sm font-medium opacity-80 mt-1">Define clear objectives and assign them to your team members.</p>
+        </div>
+
+        <form onSubmit={onSubmit} className="p-10 space-y-8">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-loose">Task Title</label>
             <input
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="e.g., Q1 Performance Review"
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              className="block w-full px-5 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50/30 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-gray-700"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Description</label>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-loose">Detailed Description</label>
             <textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={4}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              placeholder="Break down the steps or context for this assignment..."
+              className="block w-full px-5 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50/30 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-gray-600"
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Priority</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-loose">Priority Level</label>
+              <div className="grid grid-cols-3 gap-2">
+                {['Low', 'Medium', 'High'].map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setForm({ ...form, priority: p })}
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-tighter transition-all border-2 ${form.priority === p ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-white border-gray-100 text-gray-400 hover:border-indigo-200'}`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-loose">Assignee</label>
               <select
-                value={form.priority}
-                onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                value={form.assignee}
+                onChange={(e) => setForm({ ...form, assignee: e.target.value })}
+                required
+                className="block w-full px-5 py-3.5 rounded-2xl border-2 border-gray-50 bg-gray-50/30 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-gray-700 cursor-pointer appearance-none"
               >
-                <option>Low</option>
-                <option>Medium</option>
-                <option>High</option>
+                <option value="">Select Member...</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} — {u.role}
+                  </option>
+                ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              >
-                <option>Todo</option>
-                <option>InProgress</option>
-                <option>Done</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Assign to Team Member</label>
-            <select
-              value={form.assignee}
-              onChange={(e) => setForm({ ...form, assignee: e.target.value })}
-              required
-              className="mt-1 block w-full rounded-xl border-gray-300 bg-gray-50/50 px-4 py-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm transition-all font-medium"
-            >
-              <option value="">Select an Employee...</option>
-              {users.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name} — ({u.role})
-                </option>
-              ))}
-            </select>
-            <p className="mt-2 text-xs text-gray-400 italic font-medium">
-              * Required: Please select who will be responsible for this task.
-            </p>
           </div>
 
           <div className="pt-6">
             <button
               type="submit"
               disabled={submitting}
-              className={`w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-lg text-base font-black uppercase tracking-widest text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform active:scale-95 ${submitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+              className={`w-full flex justify-center py-5 px-4 border border-transparent rounded-[1.5rem] shadow-2xl text-lg font-black uppercase tracking-[0.2em] text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all transform active:scale-95 disabled:grayscale ${submitting ? 'cursor-not-allowed' : ''}`}
             >
-              {submitting ? 'Assigning Task...' : 'Create & Assign Task'}
+              {submitting ? 'Broadcasting...' : 'Launch Mission'}
             </button>
           </div>
         </form>

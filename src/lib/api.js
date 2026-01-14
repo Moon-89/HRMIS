@@ -25,7 +25,9 @@ const api = axios.create({
 // Attach Authorization header if access token exists
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
-  if (token) config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -51,17 +53,25 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const status = error?.response?.status;
-    // Prevent infinite loop if the refresh endpoint itself fails
-    if (original.url.includes('/auth/refresh')) {
+
+    // 1. Don't try to refresh if the request itself was an auth attempt or refresh
+    const isAuthRequest = original.url.includes('/auth/login') ||
+      original.url.includes('/auth/register') ||
+      original.url.includes('/auth/refresh');
+
+    if (isAuthRequest) {
       return Promise.reject(error);
     }
-    if (status === 401 && !original.__retry) {
+
+    // 2. Only try to refresh if we actually have a token and get a 401
+    const token = getAccessToken();
+    if (status === 401 && token && !original.__retry) {
       if (refreshing) {
         return new Promise((resolve, reject) => {
           pendingQueue.push({
-            resolve: (token) => {
+            resolve: (newToken) => {
               original.__retry = true;
-              if (token) original.headers.Authorization = `Bearer ${token}`;
+              original.headers.Authorization = `Bearer ${newToken}`;
               resolve(api(original));
             },
             reject: (err) => reject(err),
@@ -83,7 +93,7 @@ api.interceptors.response.use(
       } catch (err) {
         refreshing = false;
         processQueue(err, null);
-        onSessionExpired(); // Log out if refresh fails
+        onSessionExpired();
         return Promise.reject(err);
       }
     }

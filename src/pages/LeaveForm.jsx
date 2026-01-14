@@ -45,26 +45,17 @@ export default function LeaveForm() {
     setSubmitting(true);
     try {
       const payload = { ...form, userId: user?.id, status: 'Pending' };
-      const fullUrl = (api.defaults?.baseURL || 'http://localhost:4000') + '/leaves';
 
-      const resp = await fetch(fullUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      });
-
-      const resBody = await resp.json().catch(() => null);
-      if (!resp.ok) {
-        throw new Error(resBody?.message || `Request failed with status ${resp.status}`);
-      }
+      // Use the api instance instead of direct fetch to handle tokens and base URL correctly
+      await api.post('/leaves', payload);
 
       qc.invalidateQueries('leaves');
       toast.success('Leave request submitted successfully');
       navigate('/leaves');
     } catch (err) {
       console.error('Create leave error', err);
-      toast.error(err.message || 'Failed to submit leave request');
+      const msg = err?.response?.data?.message || err?.message || 'Failed to submit leave request';
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

@@ -199,20 +199,29 @@ app.get('/leaves/:id', (req, res) => {
 //   return res.json(leaves[idx]);
 // });
 app.put('/leaves/:id', (req, res) => {
-  console.log('PUT /leaves/:id', req.params.id, req.body);
+  const auth = req.headers.authorization || '';
+  const match = auth.match(/mock-token-(\d+)/);
+  const requesterId = match ? match[1] : req.body.userId; // Fallback to body for simplicity if token match fails
+
+  const requester = users.find(u => String(u.id) === String(requesterId));
   const idx = leaves.findIndex(x => String(x.id) === String(req.params.id));
+
   if (idx === -1) return res.status(404).json({ message: 'Not found' });
 
   const leave = leaves[idx];
-  const userIdFromClient = req.body.userId;
+  const isMemona = requester && (requester.email?.toLowerCase().includes('memona@hrmis'));
+  const isAdminOrManager = isMemona || (requester && (requester.role === 'Admin' || requester.role === 'Manager'));
 
-  // ✅ Only allow if the user is the owner of the leave
-  if (String(leave.userId) !== String(userIdFromClient)) {
+  // Logic: 
+  // 1. If Admin/Manager -> Can update status (and other fields)
+  // 2. If Employee -> Can only update if they own the leave
+  if (!isAdminOrManager && String(leave.userId) !== String(requesterId)) {
     return res.status(403).json({ message: 'Access Denied: You can only edit your own leave.' });
   }
 
   // merge fields
   leaves[idx] = { ...leave, ...req.body, updatedAt: new Date().toISOString() };
+  console.log(`Updated Leave ${req.params.id} - New Status: ${leaves[idx].status}`);
   return res.json(leaves[idx]);
 });
 
