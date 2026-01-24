@@ -297,8 +297,14 @@ app.delete('/tasks/:id', (req, res) => {
   return res.json({ message: 'Deleted' });
 });
 
-const port = 4000;
-app.listen(port, () => console.log(`Mock server listening on http://localhost:${port}`));
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  const port = process.env.PORT || 4000;
+  app.listen(port, () => console.log(`Mock server listening on http://localhost:${port}`));
+}
+
+// Export for Vercel serverless
+module.exports = app;
 
 // Helpful root page to show available endpoints and current data
 app.get('/', (req, res) => {
