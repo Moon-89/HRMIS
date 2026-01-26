@@ -5,23 +5,20 @@ let accessToken = typeof window !== 'undefined' ? localStorage.getItem('hrmis_to
 export const getAccessToken = () => accessToken;
 export const setAccessToken = (t) => { accessToken = t; };
 
-const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:4000';
-
-console.log('--------------------------------------');
-console.log('🔌 HRMIS API CONFIGURATION');
-console.log('🔗 API URL:', apiUrl);
-console.log('🌍 Environment:', process.env.NODE_ENV);
-console.log('--------------------------------------');
+const fallback = 'http://localhost:4000';
+if (!process.env.REACT_APP_API_URL) {
+  console.warn('REACT_APP_API_URL not set — falling back to', fallback);
+}
 
 export async function fetchActivities() {
-  const res = await fetch(`${apiUrl}/api/activities`); // Use strict URL
+  const res = await fetch('/api/activities');
   return res.json();
 }
 
 
 
 const api = axios.create({
-  baseURL: apiUrl, // Hardcoded strict URL
+  baseURL: process.env.REACT_APP_API_URL || fallback,
   withCredentials: true,
 });
 
