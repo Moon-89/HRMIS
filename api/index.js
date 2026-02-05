@@ -72,12 +72,12 @@ app.use(async (req, res, next) => {
     const auth = req.headers.authorization || '';
     const match = auth.match(/mock-token-(\d+)/);
     if (match) {
-        const userId = parseInt(match[1]);
+        const userIdFromToken = parseInt(match[1]);
         try {
-            const { rows } = await sql`SELECT * FROM users WHERE id = ${userId}`;
+            const { rows } = await sql`SELECT * FROM users WHERE id = ${userIdFromToken}`;
             if (rows.length > 0) {
                 const u = rows[0];
-                req.userId = u.id;
+                req.userId = u.id; // Keep as number
                 req.user = u;
                 req.userRole = isAdminEmail(u.email) ? 'Admin' : u.role;
             }
@@ -148,28 +148,6 @@ app.post(r('/auth/login'), async (req, res) => {
     }
 });
 
-app.post(r('/auth/refresh'), async (req, res) => {
-    const refreshToken = req.body.refreshToken || req.headers['x-refresh-token'];
-    if (!refreshToken) return res.status(401).json({ message: 'No refresh token' });
-
-    try {
-        const userIdMatch = refreshToken.split('-')[2];
-        const userId = parseInt(userIdMatch);
-
-        const { rows } = await sql`SELECT id, name, email, role FROM users WHERE id = ${userId}`;
-        if (rows.length === 0) return res.status(401).json({ message: 'Session expired' });
-
-        const u = rows[0];
-        return res.json({
-            accessToken: `mock-token-${u.id}`,
-            refreshToken: `ref-token-${u.id}`,
-            user: u
-        });
-    } catch (e) {
-        return res.status(500).json({ message: e.message });
-    }
-});
-
 // --- USER ROUTES ---
 app.get(r('/users'), async (req, res) => {
     if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin only' });
@@ -220,7 +198,6 @@ app.get(r('/leaves'), async (req, res) => {
 
         return res.json(result.rows.map(l => ({
             ...l,
-            id: l.id,
             userId: l.user_id,
             startDate: l.start_date,
             endDate: l.end_date,
@@ -228,6 +205,35 @@ app.get(r('/leaves'), async (req, res) => {
             updatedAt: l.updated_at,
             user: { name: l.user_name, email: l.user_email }
         })));
+    } catch (e) {
+        return res.status(500).json({ message: e.message });
+    }
+});
+
+app.get(r('/leaves/:id'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { rows } = await sql`
+            SELECT l.*, u.name as user_name, u.email as user_email 
+            FROM leaves l 
+            JOIN users u ON l.user_id = u.id 
+            WHERE l.id = ${id}
+        `;
+        if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
+
+        const l = rows[0];
+        // Permission check
+        if (req.userRole !== 'Admin' && l.user_id !== req.userId) {
+            return res.status(403).json({ message: 'Denied' });
+        }
+
+        return res.json({
+            ...l,
+            userId: l.user_id,
+            startDate: l.start_date,
+            endDate: l.end_date,
+            user: { name: l.user_name, email: l.user_email }
+        });
     } catch (e) {
         return res.status(500).json({ message: e.message });
     }
@@ -262,7 +268,6 @@ app.put(r('/leaves/:id'), async (req, res) => {
             return res.status(403).json({ message: 'Denied' });
         }
 
-        // Update fields if provided
         const newStatus = status || leave.status;
         const newStart = startDate || leave.start_date;
         const newEnd = endDate || leave.end_date;
