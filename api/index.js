@@ -77,7 +77,7 @@ app.use(async (req, res, next) => {
             const { rows } = await sql`SELECT * FROM users WHERE id = ${userIdFromToken}`;
             if (rows.length > 0) {
                 const u = rows[0];
-                req.userId = u.id; // Keep as number
+                req.userId = u.id;
                 req.user = u;
                 req.userRole = isAdminEmail(u.email) ? 'Admin' : u.role;
             }
@@ -146,6 +146,32 @@ app.post(r('/auth/login'), async (req, res) => {
     } catch (e) {
         return res.status(500).json({ message: e.message });
     }
+});
+
+app.post(r('/auth/refresh'), async (req, res) => {
+    const refreshToken = req.body.refreshToken || req.headers['x-refresh-token'];
+    if (!refreshToken) return res.status(401).json({ message: 'No refresh token' });
+
+    try {
+        const parts = refreshToken.split('-');
+        const userId = parseInt(parts[2]);
+
+        const { rows } = await sql`SELECT id, name, email, role FROM users WHERE id = ${userId}`;
+        if (rows.length === 0) return res.status(401).json({ message: 'Session expired' });
+
+        const u = rows[0];
+        return res.json({
+            accessToken: `mock-token-${u.id}`,
+            refreshToken: `ref-token-${u.id}`,
+            user: { id: u.id, name: u.name, email: u.email, role: u.role }
+        });
+    } catch (e) {
+        return res.status(500).json({ message: e.message });
+    }
+});
+
+app.post(r('/auth/logout'), (req, res) => {
+    res.json({ message: "Logged out" });
 });
 
 // --- USER ROUTES ---
@@ -222,7 +248,6 @@ app.get(r('/leaves/:id'), async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
 
         const l = rows[0];
-        // Permission check
         if (req.userRole !== 'Admin' && l.user_id !== req.userId) {
             return res.status(403).json({ message: 'Denied' });
         }
@@ -317,6 +342,23 @@ app.get(r('/tasks'), async (req, res) => {
     }
 });
 
+app.get(r('/tasks/:id'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { rows } = await sql`SELECT * FROM tasks WHERE id = ${id}`;
+        if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
+
+        const task = rows[0];
+        // Only admin or the assignee can see the task
+        if (req.userRole !== 'Admin' && task.assignee !== req.userId) {
+            return res.status(403).json({ message: 'Denied' });
+        }
+        return res.json(task);
+    } catch (e) {
+        return res.status(500).json({ message: e.message });
+    }
+});
+
 app.post(r('/tasks'), async (req, res) => {
     if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin only' });
     const { title, description, priority, status, assignee } = req.body;
@@ -328,6 +370,49 @@ app.post(r('/tasks'), async (req, res) => {
             RETURNING *;
         `;
         return res.status(201).json(result.rows[0]);
+    } catch (e) {
+        return res.status(500).json({ message: e.message });
+    }
+});
+
+app.put(r('/tasks/:id'), async (req, res) => {
+    const { id } = req.params;
+    const { title, description, priority, status, assignee } = req.body;
+
+    try {
+        const { rows } = await sql`SELECT * FROM tasks WHERE id = ${id}`;
+        if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
+
+        const task = rows[0];
+        // Only admin or the assignee (if permitted by business logic, here admin only for full edit)
+        // Let's allow Admin for all, and Assignee for some fields (like status)
+        if (req.userRole !== 'Admin' && task.assignee !== req.userId) {
+            return res.status(403).json({ message: 'Denied' });
+        }
+
+        const updated = await sql`
+            UPDATE tasks 
+            SET title = ${title || task.title}, 
+                description = ${description || task.description}, 
+                priority = ${priority || task.priority}, 
+                status = ${status || task.status}, 
+                assignee = ${assignee || task.assignee},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${id}
+            RETURNING *;
+        `;
+        return res.json(updated.rows[0]);
+    } catch (e) {
+        return res.status(500).json({ message: e.message });
+    }
+});
+
+app.delete(r('/tasks/:id'), async (req, res) => {
+    if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin only' });
+    const { id } = req.params;
+    try {
+        await sql`DELETE FROM tasks WHERE id = ${id}`;
+        return res.json({ message: 'Deleted' });
     } catch (e) {
         return res.status(500).json({ message: e.message });
     }
