@@ -19,6 +19,7 @@ const r = (path) => [`/api${path}`, path];
 // --- DATABASE INITIALIZATION ---
 const initDb = async () => {
     try {
+        console.log("Initializing database tables...");
         await sql`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -54,10 +55,9 @@ const initDb = async () => {
         `;
 
         // Ensure Admin user exists
-        const adminEmail = 'memona@hrmis.com';
         await sql`
             INSERT INTO users (name, email, password, role)
-            VALUES ('Memona Admin', ${adminEmail}, 'password123', 'Admin')
+            VALUES ('Memona Admin', 'memona@hrmis.com', 'password123', 'Admin')
             ON CONFLICT (email) DO NOTHING;
         `;
 
@@ -71,28 +71,38 @@ const initDb = async () => {
 app.use(async (req, res, next) => {
     const auth = req.headers.authorization || '';
     const match = auth.match(/mock-token-(\d+)/);
+
+    req.userId = null;
+    req.user = null;
+    req.userRole = 'Guest';
+
     if (match) {
         const userIdFromToken = parseInt(match[1]);
-        try {
-            const { rows } = await sql`SELECT * FROM users WHERE id = ${userIdFromToken}`;
-            if (rows.length > 0) {
-                const u = rows[0];
-                req.userId = u.id;
-                req.user = u;
-                req.userRole = isAdminEmail(u.email) ? 'Admin' : u.role;
+        if (!isNaN(userIdFromToken)) {
+            try {
+                const { rows } = await sql`SELECT id, name, email, role FROM users WHERE id = ${userIdFromToken}`;
+                if (rows.length > 0) {
+                    const u = rows[0];
+                    req.userId = u.id;
+                    req.user = u;
+                    req.userRole = isAdminEmail(u.email) ? 'Admin' : u.role;
+                }
+            } catch (e) {
+                console.error("Auth middleware SQL error:", e.message);
             }
-        } catch (e) {
-            console.error("Auth middleware error:", e);
         }
     }
     next();
 });
 
-// Setup route to manually trigger DB init if needed
+// Setup route to manually trigger DB init
 app.get(r('/setup-db'), async (req, res) => {
     await initDb();
-    res.json({ message: "Database setup attempted. Check logs." });
+    res.json({ message: "Database setup attempted. Check Vercel logs." });
 });
+
+// root endpoint to check if healthy
+app.get(r('/health'), (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
 // --- AUTH ROUTES ---
 app.post(r('/auth/register'), async (req, res) => {
@@ -104,7 +114,7 @@ app.post(r('/auth/register'), async (req, res) => {
         const role = isAdminEmail(normalizedEmail) ? 'Admin' : 'Employee';
         const result = await sql`
             INSERT INTO users (name, email, password, role)
-            VALUES (${name}, ${normalizedEmail}, ${password}, ${role})
+            VALUES (${name || 'New User'}, ${normalizedEmail}, ${password}, ${role})
             ON CONFLICT (email) DO NOTHING
             RETURNING id, name, email, role;
         `;
@@ -120,17 +130,19 @@ app.post(r('/auth/register'), async (req, res) => {
             user: user
         });
     } catch (e) {
-        return res.status(500).json({ message: e.message });
+        console.error("Register Error:", e);
+        return res.status(500).json({ message: "Server error during registration" });
     }
 });
 
 app.post(r('/auth/login'), async (req, res) => {
     const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
     const normalizedEmail = email?.toLowerCase().trim();
 
     try {
         const { rows } = await sql`
-            SELECT id, name, email, role, password 
+            SELECT id, name, email, role 
             FROM users 
             WHERE email = ${normalizedEmail} AND password = ${password}
         `;
@@ -144,20 +156,25 @@ app.post(r('/auth/login'), async (req, res) => {
             user: { id: u.id, name: u.name, email: u.email, role: u.role }
         });
     } catch (e) {
-        return res.status(500).json({ message: e.message });
+        console.error("Login Error:", e);
+        return res.status(500).json({ message: "Server error during login" });
     }
 });
 
 app.post(r('/auth/refresh'), async (req, res) => {
     const refreshToken = req.body.refreshToken || req.headers['x-refresh-token'];
-    if (!refreshToken) return res.status(401).json({ message: 'No refresh token' });
+    if (!refreshToken || typeof refreshToken !== 'string') {
+        return res.status(401).json({ message: 'No refresh token provided' });
+    }
 
     try {
         const parts = refreshToken.split('-');
         const userId = parseInt(parts[2]);
 
+        if (isNaN(userId)) return res.status(401).json({ message: 'Invalid token format' });
+
         const { rows } = await sql`SELECT id, name, email, role FROM users WHERE id = ${userId}`;
-        if (rows.length === 0) return res.status(401).json({ message: 'Session expired' });
+        if (rows.length === 0) return res.status(401).json({ message: 'User not found or session expired' });
 
         const u = rows[0];
         return res.json({
@@ -166,19 +183,20 @@ app.post(r('/auth/refresh'), async (req, res) => {
             user: { id: u.id, name: u.name, email: u.email, role: u.role }
         });
     } catch (e) {
-        return res.status(500).json({ message: e.message });
+        console.error("Refresh Error:", e);
+        return res.status(500).json({ message: "Server error during session refresh" });
     }
 });
 
 app.post(r('/auth/logout'), (req, res) => {
-    res.json({ message: "Logged out" });
+    res.json({ message: "Logged out successfully" });
 });
 
 // --- USER ROUTES ---
 app.get(r('/users'), async (req, res) => {
-    if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin only' });
+    if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin access required' });
     try {
-        const { rows } = await sql`SELECT id, name, email, role FROM users`;
+        const { rows } = await sql`SELECT id, name, email, role FROM users ORDER BY name ASC`;
         return res.json(rows);
     } catch (e) {
         return res.status(500).json({ message: e.message });
@@ -201,7 +219,7 @@ app.get(r('/leaves'), async (req, res) => {
                     SELECT l.*, u.name as user_name, u.email as user_email 
                     FROM leaves l 
                     JOIN users u ON l.user_id = u.id 
-                    WHERE l.user_id = ${userId}
+                    WHERE l.user_id = ${parseInt(userId)}
                     ORDER BY l.created_at DESC
                 `;
             } else {
@@ -213,6 +231,7 @@ app.get(r('/leaves'), async (req, res) => {
                 `;
             }
         } else {
+            if (!req.userId) return res.status(401).json({ message: "Unauthorized" });
             result = await sql`
                 SELECT l.*, u.name as user_name, u.email as user_email 
                 FROM leaves l 
@@ -232,6 +251,7 @@ app.get(r('/leaves'), async (req, res) => {
             user: { name: l.user_name, email: l.user_email }
         })));
     } catch (e) {
+        console.error("Fetch Leaves Error:", e);
         return res.status(500).json({ message: e.message });
     }
 });
@@ -243,13 +263,13 @@ app.get(r('/leaves/:id'), async (req, res) => {
             SELECT l.*, u.name as user_name, u.email as user_email 
             FROM leaves l 
             JOIN users u ON l.user_id = u.id 
-            WHERE l.id = ${id}
+            WHERE l.id = ${parseInt(id)}
         `;
-        if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
+        if (rows.length === 0) return res.status(404).json({ message: 'Leave request not found' });
 
         const l = rows[0];
         if (req.userRole !== 'Admin' && l.user_id !== req.userId) {
-            return res.status(403).json({ message: 'Denied' });
+            return res.status(403).json({ message: 'Permission denied' });
         }
 
         return res.json({
@@ -285,7 +305,7 @@ app.put(r('/leaves/:id'), async (req, res) => {
     const { status, startDate, endDate, reason } = req.body;
 
     try {
-        const { rows } = await sql`SELECT * FROM leaves WHERE id = ${id}`;
+        const { rows } = await sql`SELECT * FROM leaves WHERE id = ${parseInt(id)}`;
         if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
 
         const leave = rows[0];
@@ -293,15 +313,14 @@ app.put(r('/leaves/:id'), async (req, res) => {
             return res.status(403).json({ message: 'Denied' });
         }
 
-        const newStatus = status || leave.status;
-        const newStart = startDate || leave.start_date;
-        const newEnd = endDate || leave.end_date;
-        const newReason = reason || leave.reason;
-
         const updated = await sql`
             UPDATE leaves 
-            SET status = ${newStatus}, start_date = ${newStart}, end_date = ${newEnd}, reason = ${newReason}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${id}
+            SET status = ${status || leave.status}, 
+                start_date = ${startDate || leave.start_date}, 
+                end_date = ${endDate || leave.end_date}, 
+                reason = ${reason || leave.reason}, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ${parseInt(id)}
             RETURNING *;
         `;
         return res.json(updated.rows[0]);
@@ -313,15 +332,15 @@ app.put(r('/leaves/:id'), async (req, res) => {
 app.delete(r('/leaves/:id'), async (req, res) => {
     const { id } = req.params;
     try {
-        const { rows } = await sql`SELECT * FROM leaves WHERE id = ${id}`;
+        const { rows } = await sql`SELECT user_id FROM leaves WHERE id = ${parseInt(id)}`;
         if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
 
         if (req.userRole !== 'Admin' && rows[0].user_id !== req.userId) {
             return res.status(403).json({ message: 'Denied' });
         }
 
-        await sql`DELETE FROM leaves WHERE id = ${id}`;
-        return res.json({ message: 'Deleted' });
+        await sql`DELETE FROM leaves WHERE id = ${parseInt(id)}`;
+        return res.json({ message: 'Deleted successfully' });
     } catch (e) {
         return res.status(500).json({ message: e.message });
     }
@@ -334,10 +353,12 @@ app.get(r('/tasks'), async (req, res) => {
         if (req.userRole === 'Admin') {
             result = await sql`SELECT * FROM tasks ORDER BY created_at DESC`;
         } else {
+            if (!req.userId) return res.status(401).json({ message: "Unauthorized" });
             result = await sql`SELECT * FROM tasks WHERE assignee = ${req.userId} ORDER BY created_at DESC`;
         }
         return res.json(result.rows);
     } catch (e) {
+        console.error("Fetch Tasks Error:", e);
         return res.status(500).json({ message: e.message });
     }
 });
@@ -345,13 +366,12 @@ app.get(r('/tasks'), async (req, res) => {
 app.get(r('/tasks/:id'), async (req, res) => {
     const { id } = req.params;
     try {
-        const { rows } = await sql`SELECT * FROM tasks WHERE id = ${id}`;
-        if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
+        const { rows } = await sql`SELECT * FROM tasks WHERE id = ${parseInt(id)}`;
+        if (rows.length === 0) return res.status(404).json({ message: 'Task not found' });
 
         const task = rows[0];
-        // Only admin or the assignee can see the task
         if (req.userRole !== 'Admin' && task.assignee !== req.userId) {
-            return res.status(403).json({ message: 'Denied' });
+            return res.status(403).json({ message: 'Access denied' });
         }
         return res.json(task);
     } catch (e) {
@@ -360,17 +380,18 @@ app.get(r('/tasks/:id'), async (req, res) => {
 });
 
 app.post(r('/tasks'), async (req, res) => {
-    if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin only' });
+    if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin access required to create tasks' });
     const { title, description, priority, status, assignee } = req.body;
 
     try {
         const result = await sql`
             INSERT INTO tasks (title, description, priority, status, assignee)
-            VALUES (${title}, ${description}, ${priority}, ${status || 'Todo'}, ${assignee})
+            VALUES (${title}, ${description || ''}, ${priority || 'Medium'}, ${status || 'Todo'}, ${assignee ? parseInt(assignee) : null})
             RETURNING *;
         `;
         return res.status(201).json(result.rows[0]);
     } catch (e) {
+        console.error("Create Task Error:", e);
         return res.status(500).json({ message: e.message });
     }
 });
@@ -380,12 +401,10 @@ app.put(r('/tasks/:id'), async (req, res) => {
     const { title, description, priority, status, assignee } = req.body;
 
     try {
-        const { rows } = await sql`SELECT * FROM tasks WHERE id = ${id}`;
-        if (rows.length === 0) return res.status(404).json({ message: 'Not found' });
+        const { rows } = await sql`SELECT * FROM tasks WHERE id = ${parseInt(id)}`;
+        if (rows.length === 0) return res.status(404).json({ message: 'Task not found' });
 
         const task = rows[0];
-        // Only admin or the assignee (if permitted by business logic, here admin only for full edit)
-        // Let's allow Admin for all, and Assignee for some fields (like status)
         if (req.userRole !== 'Admin' && task.assignee !== req.userId) {
             return res.status(403).json({ message: 'Denied' });
         }
@@ -396,9 +415,9 @@ app.put(r('/tasks/:id'), async (req, res) => {
                 description = ${description || task.description}, 
                 priority = ${priority || task.priority}, 
                 status = ${status || task.status}, 
-                assignee = ${assignee || task.assignee},
+                assignee = ${assignee ? parseInt(assignee) : task.assignee},
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${id}
+            WHERE id = ${parseInt(id)}
             RETURNING *;
         `;
         return res.json(updated.rows[0]);
@@ -408,11 +427,11 @@ app.put(r('/tasks/:id'), async (req, res) => {
 });
 
 app.delete(r('/tasks/:id'), async (req, res) => {
-    if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin only' });
+    if (req.userRole !== 'Admin') return res.status(403).json({ message: 'Admin access required to delete tasks' });
     const { id } = req.params;
     try {
-        await sql`DELETE FROM tasks WHERE id = ${id}`;
-        return res.json({ message: 'Deleted' });
+        const result = await sql`DELETE FROM tasks WHERE id = ${parseInt(id)}`;
+        return res.json({ message: 'Task deleted successfully' });
     } catch (e) {
         return res.status(500).json({ message: e.message });
     }
