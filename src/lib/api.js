@@ -5,9 +5,10 @@ let accessToken = typeof window !== 'undefined' ? localStorage.getItem('hrmis_to
 export const getAccessToken = () => accessToken;
 export const setAccessToken = (t) => { accessToken = t; };
 
-const fallback = 'http://localhost:4000';
-if (!process.env.REACT_APP_API_URL) {
-  console.warn('REACT_APP_API_URL not set — falling back to', fallback);
+const fallback = '/api';
+const apiUrl = process.env.REACT_APP_API_URL || fallback;
+if (!process.env.REACT_APP_API_URL && process.env.NODE_ENV === 'production') {
+  console.log('Production mode: using relative /api path');
 }
 
 export async function fetchActivities() {
@@ -18,7 +19,7 @@ export async function fetchActivities() {
 
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || fallback,
+  baseURL: apiUrl,
   withCredentials: true,
 });
 
@@ -83,9 +84,14 @@ api.interceptors.response.use(
       refreshing = true;
 
       try {
-        const res = await api.post('/auth/refresh');
+        const rfToken = localStorage.getItem('hrmis_refresh');
+        const res = await api.post('/auth/refresh', { refreshToken: rfToken });
         const newToken = res.data.accessToken;
+        const newRefToken = res.data.refreshToken;
+
         setAccessToken(newToken);
+        if (newRefToken) localStorage.setItem('hrmis_refresh', newRefToken);
+
         refreshing = false;
         processQueue(null, newToken);
         original.headers.Authorization = `Bearer ${newToken}`;

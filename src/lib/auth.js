@@ -40,15 +40,17 @@ export const AuthProvider = ({ children }) => {
   // Optional: Verify session with backend on mount
   useEffect(() => {
     const verifySession = async () => {
-      if (!accessTokenState) return;
+      const rfToken = localStorage.getItem('hrmis_refresh');
+      if (!rfToken) return;
+
       try {
-        // Try refreshing or getting profile to ensure token is still valid
-        const res = await api.post('/auth/refresh');
+        const res = await api.post('/auth/refresh', { refreshToken: rfToken });
         if (res?.data?.accessToken) {
           let userData = res.data.user;
-          if (userData && userData.email?.toLowerCase()?.includes('memona@hrmis')) {
+          if (userData && (userData.email?.toLowerCase()?.includes('memona@hrmis') || userData.email === 'memona@hrmis.com')) {
             userData = { ...userData, role: 'Admin' };
           }
+          if (res.data.refreshToken) localStorage.setItem('hrmis_refresh', res.data.refreshToken);
           setAccessTokenState(res.data.accessToken);
           if (userData) setUser(userData);
         }
@@ -75,6 +77,7 @@ export const AuthProvider = ({ children }) => {
       userData = { ...userData, role: 'Admin' };
     }
 
+    if (res.data.refreshToken) localStorage.setItem('hrmis_refresh', res.data.refreshToken);
     setAccessTokenState(token);
     setUser(userData);
     return res.data;
@@ -87,6 +90,7 @@ export const AuthProvider = ({ children }) => {
       if (userData && userData.email?.toLowerCase()?.includes('memona@hrmis')) {
         userData = { ...userData, role: 'Admin' };
       }
+      if (res.data.refreshToken) localStorage.setItem('hrmis_refresh', res.data.refreshToken);
       setAccessTokenState(res.data.accessToken);
       setUser(userData);
     }
@@ -103,6 +107,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     localStorage.removeItem('hrmis_token');
     localStorage.removeItem('hrmis_user');
+    localStorage.removeItem('hrmis_refresh');
   };
 
   return (
