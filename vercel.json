@@ -5,7 +5,7 @@
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "/api"
+            "destination": "https://hrmis-api.devfamz.com/api/$1"
         },
         {
             "source": "/(.*)",

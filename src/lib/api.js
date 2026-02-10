@@ -5,22 +5,31 @@ let accessToken = typeof window !== 'undefined' ? localStorage.getItem('hrmis_to
 export const getAccessToken = () => accessToken;
 export const setAccessToken = (t) => { accessToken = t; };
 
-const fallback = '/api';
-const apiUrl = process.env.REACT_APP_API_URL || fallback;
-if (!process.env.REACT_APP_API_URL && process.env.NODE_ENV === 'production') {
-  console.log('Production mode: using relative /api path');
-}
+// API Configuration
+// In development: use relative /api path (proxied to external backend via setupProxy.js)
+// In production: use environment variable or fallback to relative path
+// API Configuration
+// Development: /api (proxied via setupProxy.js) -> https://hrmis-api.devfamz.com/api/auth/*
+// Production: https://hrmis-api.devfamz.com/api -> https://hrmis-api.devfamz.com/api/auth/*
+const isDevelopment = process.env.NODE_ENV === 'development';
+const apiUrl = isDevelopment ? '/api' : 'https://hrmis-api.devfamz.com/api';
+
+// Log API configuration
+console.log('🔗 API Base URL:', apiUrl);
+console.log('🌍 Environment:', process.env.NODE_ENV);
+console.log('🔧 Using Proxy:', isDevelopment);
 
 export async function fetchActivities() {
   const res = await fetch('/api/activities');
   return res.json();
 }
 
-
-
 const api = axios.create({
   baseURL: apiUrl,
-  withCredentials: true,
+  withCredentials: false, // Proxy handles CORS in development
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
 // Attach Authorization header if access token exists
@@ -29,7 +38,20 @@ api.interceptors.request.use((config) => {
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Log outgoing requests for debugging
+  console.log('🚀 API Request:', {
+    method: config.method?.toUpperCase(),
+    url: config.url,
+    baseURL: config.baseURL,
+    fullURL: `${config.baseURL}${config.url}`,
+    hasToken: !!token
+  });
+
   return config;
+}, (error) => {
+  console.error('❌ Request Error:', error);
+  return Promise.reject(error);
 });
 
 // Auto-refresh on 401 and retry once
@@ -50,15 +72,44 @@ const processQueue = (error, token = null) => {
 };
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Log successful responses
+    console.log('✅ API Response:', {
+      status: res.status,
+      url: res.config.url,
+      data: res.data
+    });
+    return res;
+  },
   async (error) => {
+    // Enhanced error logging
+    if (error.response) {
+      // Server responded with error status
+      console.error('❌ API Error Response:', {
+        status: error.response.status,
+        url: error.config?.url,
+        message: error.response.data?.message || error.message,
+        data: error.response.data
+      });
+    } else if (error.request) {
+      // Request was made but no response received (Network error)
+      console.error('🌐 Network Error:', {
+        message: 'No response from server',
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+        error: error.message
+      });
+    } else {
+      console.error('⚠️ Request Setup Error:', error.message);
+    }
+
     const original = error.config;
     const status = error?.response?.status;
 
     // 1. Don't try to refresh if the request itself was an auth attempt or refresh
-    const isAuthRequest = original.url.includes('/auth/login') ||
-      original.url.includes('/auth/register') ||
-      original.url.includes('/auth/refresh');
+    const isAuthRequest = original?.url?.includes('/auth/login') ||
+      original?.url?.includes('/auth/register') ||
+      original?.url?.includes('/auth/refresh');
 
     if (isAuthRequest) {
       return Promise.reject(error);

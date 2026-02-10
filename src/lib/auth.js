@@ -69,33 +69,41 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (credentials) => {
-    const res = await api.post('/auth/login', credentials);
-    const token = res.data.accessToken ?? null;
-    let userData = res.data.user ?? null;
+    // Try /login first (common in Laravel/Standard APIs), if 404 then fallback or error
+    try {
+      const res = await api.post('/auth/login', credentials);
+      handleLoginSuccess(res);
+      return res.data;
+    } catch (error) {
+      // If /login fails with 404, maybe it is /auth/login? 
+      // You can uncomment below to try fallback, but usually APIs have one fixed path.
+      // console.log('Retrying with /auth/login...');
+      // const res = await api.post('/auth/login', credentials);
+      // handleLoginSuccess(res);
+      throw error;
+    }
+  };
+
+  const handleLoginSuccess = (res) => {
+    const token = res.data.accessToken || res.data.token || res.data.access_token;
+    const userData = res.data.user || res.data.data;
 
     if (userData && userData.email?.toLowerCase()?.includes('memona@hrmis')) {
-      userData = { ...userData, role: 'Admin' };
+      userData.role = 'Admin';
     }
 
     if (res.data.refreshToken) localStorage.setItem('hrmis_refresh', res.data.refreshToken);
-    setAccessTokenState(token);
-    setUser(userData);
-    return res.data;
+    if (token) setAccessTokenState(token);
+    if (userData) setUser(userData);
   };
 
   const registerUser = async (payload) => {
     const res = await api.post('/auth/register', payload);
-    if (res.data.accessToken) {
-      let userData = res.data.user ?? null;
-      if (userData && userData.email?.toLowerCase()?.includes('memona@hrmis')) {
-        userData = { ...userData, role: 'Admin' };
-      }
-      if (res.data.refreshToken) localStorage.setItem('hrmis_refresh', res.data.refreshToken);
-      setAccessTokenState(res.data.accessToken);
-      setUser(userData);
-    }
+    handleLoginSuccess(res);
     return res.data;
   };
+
+
 
   const logout = async () => {
     try {
