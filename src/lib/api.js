@@ -1,49 +1,35 @@
 import axios from 'axios';
 
-// ─── Token Storage ───────────────────────────────────────────────────────────
+// Token handling
 let accessToken = typeof window !== 'undefined' ? localStorage.getItem('hrmis_token') : null;
 export const getAccessToken = () => accessToken;
 export const setAccessToken = (t) => { accessToken = t; };
 
-// ─── API Configuration ───────────────────────────────────────────────────────
-// Both development and production use the /api relative path.
-// • Development  → setupProxy.js rewrites /api/* → https://hrmis-api.devfamz.com/api/*
-// • Production   → vercel.json  rewrites /api/* → https://hrmis-api.devfamz.com/api/*
-// This eliminates all CORS issues because requests go to the same origin.
-const BASE_URL = '/api';
-
-console.log('🔗 API Base URL:', BASE_URL, '| env:', process.env.NODE_ENV);
-
-// ─── Axios Instance ──────────────────────────────────────────────────────────
+// Sab calls '/api' se start hongi.
+// Local dev mein setupProxy.js piche jaye ga.
+// Vercel pe vercel.json ya api/index.js proxy kare ga.
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: '/api',
   withCredentials: false,
   headers: {
     'Content-Type': 'application/json',
-  },
+    'Accept': 'application/json'
+  }
 });
 
-// ─── Request Interceptor ─────────────────────────────────────────────────────
-api.interceptors.request.use(
-  (config) => {
-    const token = getAccessToken();
-    if (token && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    console.log('🚀 API Request:', config.method?.toUpperCase(), config.baseURL + config.url);
-    return config;
-  },
-  (error) => {
-    console.error('❌ Request Error:', error);
-    return Promise.reject(error);
+// Interceptor for Auth Header
+api.interceptors.request.use((config) => {
+  const token = getAccessToken();
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-// ─── Response Interceptor (token refresh on 401) ─────────────────────────────
+// Interceptor for Errors & Refresh
 let refreshing = false;
 let pendingQueue = [];
 let onSessionExpired = () => { };
-
 export const setSessionExpiredCallback = (cb) => { onSessionExpired = cb; };
 
 const processQueue = (error, token = null) => {
@@ -55,33 +41,15 @@ const processQueue = (error, token = null) => {
 };
 
 api.interceptors.response.use(
-  (res) => {
-    console.log('✅ API Response:', res.status, res.config.url);
-    return res;
-  },
+  (res) => res,
   async (error) => {
-    if (error.response) {
-      console.error('❌ API Error:', error.response.status, error.config?.url, error.response.data);
-    } else if (error.request) {
-      console.error('🌐 Network Error (no response):', error.config?.url, error.message);
-    } else {
-      console.error('⚠️ Request Setup Error:', error.message);
+    const original = error.config;
+    // Don't refresh on login/register/refresh itself
+    if (original?.url?.includes('/auth/') && original?.url !== '/auth/refresh') {
+      return Promise.reject(error);
     }
 
-    const original = error.config;
-    const status = error?.response?.status;
-
-    // Do not refresh on auth endpoints
-    const isAuthRequest =
-      original?.url?.includes('/auth/login') ||
-      original?.url?.includes('/auth/register') ||
-      original?.url?.includes('/auth/refresh');
-
-    if (isAuthRequest) return Promise.reject(error);
-
-    // Auto-refresh on 401
-    const token = getAccessToken();
-    if (status === 401 && token && !original.__retry) {
+    if (error?.response?.status === 401 && !original.__retry) {
       if (refreshing) {
         return new Promise((resolve, reject) => {
           pendingQueue.push({
@@ -100,12 +68,14 @@ api.interceptors.response.use(
 
       try {
         const rfToken = localStorage.getItem('hrmis_refresh');
-        const res = await api.post('/auth/refresh', { refreshToken: rfToken });
+        if (!rfToken) throw new Error('No refresh token');
+
+        const res = await axios.post('/api/auth/refresh', { refreshToken: rfToken });
         const newToken = res.data.accessToken;
-        const newRefToken = res.data.refreshToken;
 
         setAccessToken(newToken);
-        if (newRefToken) localStorage.setItem('hrmis_refresh', newRefToken);
+        localStorage.setItem('hrmis_token', newToken);
+        if (res.data.refreshToken) localStorage.setItem('hrmis_refresh', res.data.refreshToken);
 
         refreshing = false;
         processQueue(null, newToken);
@@ -118,7 +88,6 @@ api.interceptors.response.use(
         return Promise.reject(err);
       }
     }
-
     return Promise.reject(error);
   }
 );

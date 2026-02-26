@@ -1,91 +1,64 @@
-/**
- * Vercel Serverless Proxy Function
- *
- * IMPORTANT: This file MUST exist in the /api folder so Vercel routes all
- * /api/* requests here. We then forward each request to the real backend.
- *
- * Flow:
- *   Browser → /api/auth/login
- *   Vercel  → this function (api/index.js)
- *   Here    → https://hrmis-api.devfamz.com/api/auth/login  (real backend)
- *
- * This avoids CORS completely because the browser talks to same-origin (/api)
- * and this serverless function forwards to the real backend server-side.
- */
-
 const https = require('https');
-const http = require('http');
-const { URL } = require('url');
 
-const BACKEND_BASE = 'https://hrmis-api.devfamz.com';
-
+/**
+ * Robust Vercel Serverless Proxy
+ * Maps  /api/xxx  →  https://hrmis-api.devfamz.com/api/xxx
+ */
 module.exports = async (req, res) => {
-    // Build target URL:  /api/xxx  →  https://hrmis-api.devfamz.com/api/xxx
-    const targetPath = req.url || '/';
-    const targetUrl = `${BACKEND_BASE}/api${targetPath.replace(/^\/api/, '')}`;
+    const targetUrl = `https://hrmis-api.devfamz.com${req.url}`;
 
-    console.log(`[PROXY] ${req.method} ${req.url}  →  ${targetUrl}`);
+    // Headers to forward
+    const headers = { ...req.headers };
+    delete headers.host;
+    delete headers.connection;
 
-    // Handle CORS preflight
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    const options = {
+        method: req.method,
+        headers: {
+            ...headers,
+            'host': 'hrmis-api.devfamz.com'
+        }
+    };
 
-    if (req.method === 'OPTIONS') {
-        res.status(204).end();
-        return;
-    }
-
-    try {
-        const parsed = new URL(targetUrl);
-        const useHttps = parsed.protocol === 'https:';
-        const options = {
-            hostname: parsed.hostname,
-            port: parsed.port || (useHttps ? 443 : 80),
-            path: parsed.pathname + (parsed.search || ''),
-            method: req.method,
-            headers: {
-                ...req.headers,
-                host: parsed.hostname, // override host header
-            },
-        };
-
-        // Remove headers that can cause issues
-        delete options.headers['content-length']; // will be recalculated
-
-        await new Promise((resolve, reject) => {
-            const transport = useHttps ? https : http;
-            const proxyReq = transport.request(options, (proxyRes) => {
+    // Helper function for the proxy request
+    const proxyRequest = () => {
+        return new Promise((resolve, reject) => {
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
                 res.status(proxyRes.statusCode);
 
-                // Forward response headers (except cors ones we already set)
+                // Forward headers from backend to browser (except CORS which we handle here)
                 Object.entries(proxyRes.headers).forEach(([key, value]) => {
                     if (!key.toLowerCase().startsWith('access-control-')) {
                         res.setHeader(key, value);
                     }
                 });
 
+                // Add standard CORS headers for safety
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+                res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
                 proxyRes.pipe(res, { end: true });
                 proxyRes.on('end', resolve);
-                proxyRes.on('error', reject);
             });
 
-            proxyReq.on('error', reject);
+            proxyReq.on('error', (err) => {
+                console.error('Proxy Request Error:', err);
+                reject(err);
+            });
 
-            // Forward request body
-            if (req.body) {
-                const body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-                proxyReq.setHeader('Content-Type', 'application/json');
-                proxyReq.setHeader('Content-Length', Buffer.byteLength(body));
-                proxyReq.write(body);
-            } else {
+            // Forward the body if it's a POST/PUT request
+            if (req.method !== 'GET' && req.method !== 'HEAD') {
                 req.pipe(proxyReq, { end: true });
+            } else {
+                proxyReq.end();
             }
-
-            proxyReq.end();
         });
+    };
+
+    try {
+        await proxyRequest();
     } catch (err) {
-        console.error('[PROXY ERROR]', err.message);
-        res.status(502).json({ error: 'Proxy error', message: err.message });
+        res.status(500).json({ error: 'Internal Proxy Error', message: err.message });
     }
 };
