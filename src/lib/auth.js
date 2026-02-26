@@ -37,11 +37,31 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user]);
 
-  // Optional: Verify session with backend on mount
+  // Verify session with backend on mount
   useEffect(() => {
     const verifySession = async () => {
       const rfToken = localStorage.getItem('hrmis_refresh');
+      const accToken = localStorage.getItem('hrmis_token');
+
       if (!rfToken) return;
+
+      // ── Old mock-server tokens check ────────────────────────────────
+      // Mock server used 'ref-token-*' and 'mock-token-*' format.
+      // Real backend tokens are JWTs (start with 'ey...').
+      // If old mock tokens detected, clear them silently — no backend call.
+      const isMockRefresh = rfToken.startsWith('ref-token-');
+      const isMockAccess = accToken && accToken.startsWith('mock-token-');
+
+      if (isMockRefresh || isMockAccess) {
+        console.warn('⚠️ Old mock tokens detected — clearing localStorage. Please login again.');
+        localStorage.removeItem('hrmis_token');
+        localStorage.removeItem('hrmis_user');
+        localStorage.removeItem('hrmis_refresh');
+        setAccessTokenState(null);
+        setUser(null);
+        return; // Don't call backend with mock tokens
+      }
+      // ────────────────────────────────────────────────────────────────
 
       try {
         const res = await api.post('/auth/refresh', { refreshToken: rfToken });
@@ -56,7 +76,12 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (e) {
         console.warn('Session verification failed, logging out...');
-        logout();
+        // Clear everything cleanly
+        localStorage.removeItem('hrmis_token');
+        localStorage.removeItem('hrmis_user');
+        localStorage.removeItem('hrmis_refresh');
+        setAccessTokenState(null);
+        setUser(null);
       }
     };
 
@@ -69,17 +94,14 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (credentials) => {
-    // Try /login first (common in Laravel/Standard APIs), if 404 then fallback or error
     try {
       const res = await api.post('/auth/login', credentials);
       handleLoginSuccess(res);
       return res.data;
     } catch (error) {
-      // If /login fails with 404, maybe it is /auth/login? 
-      // You can uncomment below to try fallback, but usually APIs have one fixed path.
-      // console.log('Retrying with /auth/login...');
-      // const res = await api.post('/auth/login', credentials);
-      // handleLoginSuccess(res);
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.message || error?.message || 'Login failed';
+      console.error('❌ Login failed:', status, msg);
       throw error;
     }
   };

@@ -2,14 +2,19 @@
     "version": 2,
     "framework": "create-react-app",
     "buildCommand": "CI=false npm run build",
-    "rewrites": [
+    "functions": {
+        "api/index.js": {
+            "includeFiles": "api/**"
+        }
+    },
+    "routes": [
         {
-            "source": "/api/:path*",
-            "destination": "https://hrmis-api.devfamz.com/api/:path*"
+            "src": "/api/(.*)",
+            "dest": "/api/index.js"
         },
         {
-            "source": "/(.*)",
-            "destination": "/index.html"
+            "src": "/(.*)",
+            "dest": "/index.html"
         }
     ],
     "headers": [
