@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api, { setSessionExpiredCallback, setAccessToken } from './api';
+import { toast } from 'react-toastify';
 
 const AuthContext = createContext(null);
 
@@ -8,11 +9,17 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('hrmis_user');
     if (!savedUser) return null;
-    const u = JSON.parse(savedUser);
-    if (u && u.email?.toLowerCase()?.includes('memona@hrmis')) {
-      return { ...u, role: 'Admin' };
+    try {
+      const u = JSON.parse(savedUser);
+      const email = (u.email || '').toLowerCase();
+      // Force Admin for Memona
+      if (email === 'memona@hrmis.com') {
+        return { ...u, role: 'Admin' };
+      }
+      return { ...u, role: u.role || 'Employee' };
+    } catch (e) {
+      return null;
     }
-    return u;
   });
 
   const [accessTokenState, setAccessTokenState] = useState(() => {
@@ -41,98 +48,110 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const verifySession = async () => {
       const rfToken = localStorage.getItem('hrmis_refresh');
-      const accToken = localStorage.getItem('hrmis_token');
-
       if (!rfToken) return;
-
-      // ── Old mock-server tokens check ────────────────────────────────
-      // Mock server used 'ref-token-*' and 'mock-token-*' format.
-      // Real backend tokens are JWTs (start with 'ey...').
-      // If old mock tokens detected, clear them silently — no backend call.
-      const isMockRefresh = rfToken.startsWith('ref-token-');
-      const isMockAccess = accToken && accToken.startsWith('mock-token-');
-
-      if (isMockRefresh || isMockAccess) {
-        console.warn('⚠️ Old mock tokens detected — clearing localStorage. Please login again.');
-        localStorage.removeItem('hrmis_token');
-        localStorage.removeItem('hrmis_user');
-        localStorage.removeItem('hrmis_refresh');
-        setAccessTokenState(null);
-        setUser(null);
-        return; // Don't call backend with mock tokens
-      }
-      // ────────────────────────────────────────────────────────────────
 
       try {
         const res = await api.post('/auth/refresh', { refreshToken: rfToken });
-        if (res?.data?.accessToken) {
-          let userData = res.data.user;
-          if (userData && (userData.email?.toLowerCase()?.includes('memona@hrmis') || userData.email === 'memona@hrmis.com')) {
-            userData = { ...userData, role: 'Admin' };
+        const d = res.data;
+        const token = d.accessToken || d.token || d.access_token;
+        if (token) {
+          let userData = d.user || d.data;
+          const effectiveEmail = (userData?.email || d?.email || '').toLowerCase();
+
+          // Reconstruct user if missing from refresh response
+          if (!userData && effectiveEmail) {
+            userData = {
+              id: d.id || 'unknown',
+              name: effectiveEmail === 'memona@hrmis.com' ? 'Memona' : 'User',
+              email: effectiveEmail,
+              role: (effectiveEmail === 'memona@hrmis.com') ? 'Admin' : 'Employee'
+            };
           }
-          if (res.data.refreshToken) localStorage.setItem('hrmis_refresh', res.data.refreshToken);
-          setAccessTokenState(res.data.accessToken);
-          if (userData) setUser(userData);
+
+          if (userData) {
+            if (userData.email?.toLowerCase() === 'memona@hrmis.com' || effectiveEmail === 'memona@hrmis.com') {
+              userData.role = 'Admin';
+            } else {
+              userData.role = userData.role || 'Employee';
+            }
+            setUser(userData);
+          }
+
+          setAccessTokenState(token);
+          if (d.refreshToken || d.refresh_token) {
+            localStorage.setItem('hrmis_refresh', d.refreshToken || d.refresh_token);
+          }
         }
       } catch (e) {
-        console.warn('Session verification failed, logging out...');
-        // Clear everything cleanly
-        localStorage.removeItem('hrmis_token');
-        localStorage.removeItem('hrmis_user');
-        localStorage.removeItem('hrmis_refresh');
-        setAccessTokenState(null);
-        setUser(null);
+        logout();
       }
     };
 
     verifySession();
+    setSessionExpiredCallback(() => logout());
 
-    // Handle expired sessions (401 errors from API)
-    setSessionExpiredCallback(() => {
-      logout();
-    });
+    // Auto-refresh token every 10 minutes (600 seconds)
+    const refreshInterval = setInterval(() => {
+      verifySession();
+    }, 600000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
+
+  const handleLoginSuccess = (res, loginEmail = null) => {
+    const d = res.data;
+    const token = d.accessToken || d.token || d.access_token;
+    let userData = d.user || d.data;
+    const effectiveEmail = (userData?.email || d?.email || loginEmail || '').toLowerCase();
+
+    // Reconstruct user if backend response is empty (very common in this project)
+    if (!userData && effectiveEmail) {
+      userData = {
+        id: d.id || 'unknown',
+        name: effectiveEmail === 'memona@hrmis.com' ? 'Memona' : 'User',
+        email: effectiveEmail,
+        role: (effectiveEmail === 'memona@hrmis.com') ? 'Admin' : 'Employee'
+      };
+    }
+
+    if (userData) {
+      if (userData.email?.toLowerCase() === 'memona@hrmis.com' || effectiveEmail === 'memona@hrmis.com') {
+        userData.role = 'Admin';
+      } else {
+        userData.role = userData.role || 'Employee';
+      }
+      setUser(userData);
+    }
+
+    if (token) {
+      setAccessTokenState(token);
+      setAccessToken(token); // Sync with API immediately
+    }
+
+    if (d.refreshToken || d.refresh_token) {
+      localStorage.setItem('hrmis_refresh', d.refreshToken || d.refresh_token);
+    }
+  };
 
   const login = async (credentials) => {
     try {
       const res = await api.post('/auth/login', credentials);
-      handleLoginSuccess(res);
+      handleLoginSuccess(res, credentials.email);
       return res.data;
     } catch (error) {
-      const status = error?.response?.status;
-      const msg = error?.response?.data?.message || error?.message || 'Login failed';
-      console.error('❌ Login failed:', status, msg);
+      console.error('Login error:', error);
+      // No guest mode - throw error directly
       throw error;
     }
   };
 
-  const handleLoginSuccess = (res) => {
-    const token = res.data.accessToken || res.data.token || res.data.access_token;
-    const userData = res.data.user || res.data.data;
-
-    if (userData && userData.email?.toLowerCase()?.includes('memona@hrmis')) {
-      userData.role = 'Admin';
-    }
-
-    if (res.data.refreshToken) localStorage.setItem('hrmis_refresh', res.data.refreshToken);
-    if (token) setAccessTokenState(token);
-    if (userData) setUser(userData);
-  };
-
   const registerUser = async (payload) => {
     const res = await api.post('/auth/register', payload);
-    handleLoginSuccess(res);
+    handleLoginSuccess(res, payload.email);
     return res.data;
   };
 
-
-
-  const logout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch (e) {
-      // ignore
-    }
+  const logout = () => {
     setAccessTokenState(null);
     setUser(null);
     localStorage.removeItem('hrmis_token');

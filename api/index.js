@@ -5,7 +5,8 @@ const https = require('https');
  * Maps  /api/xxx  →  https://hrmis-api.devfamz.com/api/xxx
  */
 module.exports = async (req, res) => {
-    const targetUrl = `https://hrmis-api.devfamz.com${req.url}`;
+    const baseUrl = process.env.REACT_APP_API_URL || 'https://hrmis-api.devfamz.com';
+    const targetUrl = `${baseUrl}${req.url}`;
 
     // Headers to forward
     const headers = { ...req.headers };

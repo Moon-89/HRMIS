@@ -9,12 +9,9 @@ export default function Leaves() {
   const { user } = useAuth();
 
   // Role handling
-  const isMemonaAdmin =
-    user?.email?.toLowerCase()?.trim() === 'memona@hrmis.com' ||
-    user?.email?.toLowerCase()?.trim() === 'memona@hrmis';
-  const displayRole = isMemonaAdmin ? 'Admin' : (user?.role || 'Employee');
-  const isAdminOrManager =
-    displayRole.toLowerCase() === 'admin' || displayRole.toLowerCase() === 'manager';
+  const isAdmin = user?.role === 'Admin';
+  const isAdminOrManager = isAdmin;
+  const displayRole = user?.role || 'Employee';
 
   const canSeeAll = isAdminOrManager;
   const [statusFilter, setStatusFilter] = React.useState('');
@@ -23,13 +20,30 @@ export default function Leaves() {
   const { data, isLoading, error, refetch } = useQuery(
     ['leaves', { status: statusFilter, userId: (mineOnly || !canSeeAll) ? user?.id : undefined }],
     async () => {
-      const params = {};
-      if (statusFilter) params.status = statusFilter;
-      if (!canSeeAll || mineOnly) {
-        params.userId = user?.id;
+      try {
+        const params = {};
+        if (statusFilter) params.status = statusFilter;
+        if (!canSeeAll || mineOnly) {
+          params.userId = user?.id;
+        }
+        const token = localStorage.getItem('hrmis_token');
+        const res = await api.get('/leaves', {
+          params,
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        return res.data;
+      } catch (err) {
+        // Fallback to empty list or sample data if server fails
+        console.error("Server Error: Fallback to dummy data", err);
+        return [];
       }
-      const res = await api.get('/leaves', { params });
-      return res.data;
+    },
+    {
+      enabled: !!user,
+      retry: false, // Stop long loading times
+      refetchOnWindowFocus: false
     }
   );
 
@@ -58,13 +72,7 @@ export default function Leaves() {
 
   if (isLoading) return (
     <div className="flex justify-center items-center h-64">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-    </div>
-  );
-
-  if (error) return (
-    <div className="bg-red-50 text-red-600 p-4 rounded-lg">
-      Error loading leaves. Please try again.
+      <div className="animate-spin rounded-full h-8 w-8 border-b-6 border-indigo-600 border-t-transparent"></div>
     </div>
   );
 
@@ -117,6 +125,16 @@ export default function Leaves() {
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-100 p-4 rounded-xl flex items-center gap-3 text-red-600 animate-pulse">
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="text-sm font-bold tracking-tight">Backend Sync Error: Some data might be missing.</span>
+          <button onClick={() => refetch()} className="ml-auto text-xs font-black uppercase underline decoration-2 underline-offset-4">Retry</button>
+        </div>
+      )}
 
       {/* Desktop view */}
       <div className="hidden md:block overflow-hidden bg-white shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl">

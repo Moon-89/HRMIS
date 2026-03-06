@@ -7,16 +7,27 @@ import { toast } from 'react-toastify';
 
 export default function Tasks() {
   const { user } = useAuth();
-  const isAdminOrManager = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager' || user?.email?.toLowerCase()?.includes('memona@hrmis');
-  const canSeeAll = isAdminOrManager;
+  const isAdmin = user?.role === 'Admin';
+  const isAdminOrManager = isAdmin;
+  const canSeeAll = isAdmin;
   const [status, setStatus] = React.useState('');
 
   const qc = useQueryClient();
 
   const { data: usersData } = useQuery('users', async () => {
-    const res = await api.get('/users');
+    const token = localStorage.getItem('hrmis_token');
+    const res = await api.get('/users', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     return res.data;
-  }, { staleTime: 300000 });
+  }, {
+    staleTime: 300000,
+    enabled: canSeeAll, // Only fetch users list if admin/manager
+    retry: false,
+    onError: () => { } // Silently handle permission errors
+  });
 
   const usersList = Array.isArray(usersData) ? usersData : [];
 
@@ -25,15 +36,30 @@ export default function Tasks() {
     if (status) params.status = status;
     if (!canSeeAll) params.assignee = user?.id;
 
-    const res = await api.get('/tasks', { params });
+    const token = localStorage.getItem('hrmis_token');
+    const res = await api.get('/tasks', {
+      params,
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     return res.data;
+  }, {
+    enabled: !!user,
+    retry: false,
+    refetchOnWindowFocus: false
   });
 
   const handleDelete = async (id) => {
     if (!isAdminOrManager) return;
     if (!window.confirm('Are you sure you want to delete this task?')) return;
     try {
-      await api.delete(`/tasks/${id}`);
+      const token = localStorage.getItem('hrmis_token');
+      await api.delete(`/tasks/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       qc.invalidateQueries('tasks');
       toast.success('Task deleted successfully');
     } catch (err) {
@@ -44,12 +70,6 @@ export default function Tasks() {
   if (isLoading) return (
     <div className="flex justify-center items-center h-64">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-    </div>
-  );
-
-  if (error) return (
-    <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100">
-      Error loading tasks. Please try again.
     </div>
   );
 
@@ -107,6 +127,15 @@ export default function Tasks() {
           </div>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-100 p-4 rounded-xl flex items-center gap-3 text-red-600">
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="text-sm font-bold tracking-tight">Sync Problem: Please check your internet or server status.</span>
+        </div>
+      )}
 
       {/* Desktop View */}
       <div className="hidden lg:block overflow-hidden bg-white shadow-xl rounded-2xl border border-gray-100">

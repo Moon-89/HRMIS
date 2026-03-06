@@ -51,7 +51,7 @@ export default function App() {
                     <Link to="/tasks" className={`px-3 py-2 rounded-md text-sm font-bold transition-colors ${isActive('/tasks')}`}>Tasks</Link>
                   </>
                 )}
-                {user && (user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'manager' || user.email?.toLowerCase()?.includes('memona@hrmis')) && (
+                {user && user.role === 'Admin' && (
                   <Link to="/users" className={`px-3 py-2 rounded-md text-sm font-bold transition-colors ${isActive('/users')}`}>Users</Link>
                 )}
               </div>
@@ -61,9 +61,9 @@ export default function App() {
               {user ? (
                 <>
                   <div className="flex flex-col items-end mr-2">
-                    <span className="text-sm font-bold text-gray-800">{user.name}</span>
+                    <span className="text-sm font-bold text-gray-800">{user.name || 'User'}</span>
                     <span className="text-[10px] text-indigo-600 font-extrabold bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-tighter border border-indigo-100">
-                      {(user.email?.toLowerCase()?.includes('memona@hrmis') || user.role?.toLowerCase() === 'admin') ? 'Admin' : user.role}
+                      {(user.email?.toLowerCase()?.includes('memona') || user.name?.toLowerCase()?.includes('memona') || user.role === 'Admin') ? 'Admin' : user.role}
                     </span>
                   </div>
                   <Link to="/profile" className="p-2 rounded-full text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all font-medium">
@@ -116,7 +116,7 @@ export default function App() {
                   <Link to="/tasks" onClick={() => setIsMenuOpen(false)} className={`block px-3 py-2 rounded-md text-base font-bold ${isActive('/tasks')}`}>Tasks</Link>
                 </>
               )}
-              {user && (user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'manager' || user.email?.toLowerCase()?.includes('memona@hrmis')) && (
+              {user && user.role === 'Admin' && (
                 <Link to="/users" onClick={() => setIsMenuOpen(false)} className={`block px-3 py-2 rounded-md text-base font-bold ${isActive('/users')}`}>Users</Link>
               )}
             </div>
@@ -128,8 +128,8 @@ export default function App() {
                       {user.name?.charAt(0)}
                     </div>
                     <div>
-                      <div className="text-base font-bold text-gray-800">{user.name}</div>
-                      <div className="text-sm font-medium text-gray-500">{(user.email?.toLowerCase()?.includes('memona@hrmis') || user.role?.toLowerCase() === 'admin') ? 'Admin' : user.role}</div>
+                      <div className="text-base font-bold text-gray-800">{user.name || 'User'}</div>
+                      <div className="text-sm font-medium text-gray-500">{(user.email?.toLowerCase()?.includes('memona') || user.name?.toLowerCase()?.includes('memona') || user.role === 'Admin') ? 'Admin' : user.role}</div>
                     </div>
                   </div>
                   <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="block text-gray-600 font-bold hover:text-indigo-600 py-2">Profile</Link>
@@ -159,24 +159,24 @@ export default function App() {
 
           <Route path="/denied" element={<Denied />} />
 
-          <Route path="/dashboard" element={<ProtectedRoute roles={["Admin", "Manager", "Employee"]}> <Dashboard /> </ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute roles={["Admin", "Employee"]}> <Dashboard /> </ProtectedRoute>} />
 
           <Route path="/admin" element={<ProtectedRoute role="Admin"> <AdminPanel /> </ProtectedRoute>} />
 
-          <Route path="/leaves" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}> <Leaves /> </ProtectedRoute>} />
-          <Route path="/leaves/new" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}> <LeaveForm /> </ProtectedRoute>} />
-          <Route path="/leaves/:id" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}> <LeaveDetail /> </ProtectedRoute>} />
-          <Route path="/leaves/:id/edit" element={<ProtectedRoute roles={["Admin", "Manager", "Employee"]}> <EditLeave /> </ProtectedRoute>} />
-          <Route path="/tasks" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}><Tasks /></ProtectedRoute>} />
-          <Route path="/tasks/new" element={<ProtectedRoute roles={["Manager", "Admin"]}><TaskForm /></ProtectedRoute>} />
-          <Route path="/tasks/:id" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}><TaskDetail /></ProtectedRoute>} />
-          <Route path="/tasks/:id/edit" element={<ProtectedRoute roles={["Admin", "Manager"]}><EditTask /></ProtectedRoute>} />
+          <Route path="/leaves" element={<ProtectedRoute roles={["Admin", "Employee"]}> <Leaves /> </ProtectedRoute>} />
+          <Route path="/leaves/new" element={<ProtectedRoute roles={["Admin", "Employee"]}> <LeaveForm /> </ProtectedRoute>} />
+          <Route path="/leaves/:id" element={<ProtectedRoute roles={["Admin", "Employee"]}> <LeaveDetail /> </ProtectedRoute>} />
+          <Route path="/leaves/:id/edit" element={<ProtectedRoute roles={["Admin", "Employee"]}> <EditLeave /> </ProtectedRoute>} />
+          <Route path="/tasks" element={<ProtectedRoute roles={["Admin", "Employee"]}><Tasks /></ProtectedRoute>} />
+          <Route path="/tasks/new" element={<ProtectedRoute roles={["Admin"]}><TaskForm /></ProtectedRoute>} />
+          <Route path="/tasks/:id" element={<ProtectedRoute roles={["Admin", "Employee"]}><TaskDetail /></ProtectedRoute>} />
+          <Route path="/tasks/:id/edit" element={<ProtectedRoute roles={["Admin"]}><EditTask /></ProtectedRoute>} />
 
-          <Route path="/users" element={<ProtectedRoute roles={["Admin", "Manager"]}><Users /></ProtectedRoute>} />
-          <Route path="/users/new" element={<ProtectedRoute roles={["Admin", "Manager"]}><UserForm /></ProtectedRoute>} />
-          <Route path="/users/:id" element={<ProtectedRoute roles={["Admin", "Manager"]}><UserDetail /></ProtectedRoute>} />
-          <Route path="/users/:id/edit" element={<ProtectedRoute roles={["Admin", "Manager"]}><UserForm /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute roles={["Manager", "Admin", "Employee"]}><Profile /></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute roles={["Admin"]}><Users /></ProtectedRoute>} />
+          <Route path="/users/new" element={<ProtectedRoute roles={["Admin"]}><UserForm /></ProtectedRoute>} />
+          <Route path="/users/:id" element={<ProtectedRoute roles={["Admin"]}><UserDetail /></ProtectedRoute>} />
+          <Route path="/users/:id/edit" element={<ProtectedRoute roles={["Admin"]}><UserForm /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute roles={["Admin", "Employee"]}><Profile /></ProtectedRoute>} />
         </Routes>
       </main>
     </>

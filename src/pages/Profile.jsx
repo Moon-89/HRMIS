@@ -7,9 +7,14 @@ export default function Profile() {
   const { user: authUser } = useAuth();
 
   const { data: userProfile, isLoading } = useQuery('profile', async () => {
-    const res = await api.get('/users/profile');
+    const token = localStorage.getItem('hrmis_token');
+    const res = await api.get('/users/profile', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     return res.data;
-  });
+  }, { enabled: !!authUser });
 
   if (isLoading) return <div className="p-6 text-center">Loading profile...</div>;
 
@@ -40,7 +45,7 @@ export default function Profile() {
           <div>
             <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Access Role</p>
             <span className="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
-              {(user.email?.toLowerCase()?.includes('memona@hrmis') || user.role?.toLowerCase() === 'admin') ? 'Admin' : user.role}
+              {user.role}
             </span>
           </div>
         </div>

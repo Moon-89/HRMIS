@@ -6,38 +6,40 @@ import api from '../lib/api';
 export default function Dashboard() {
   const { user } = useAuth();
 
-  // Failsafe: if email is memona@hrmis.com, always treat as Admin on frontend
-  const isMemonaAdmin = user?.email?.toLowerCase()?.trim() === 'memona@hrmis.com' || user?.email?.toLowerCase()?.trim() === 'memona@hrmis';
-  const displayRole = isMemonaAdmin ? 'Admin' : (user?.role || 'Employee');
-
-  const isAdminOrManager = displayRole.toLowerCase() === 'admin' || displayRole.toLowerCase() === 'manager';
+  const isAdmin = user?.role === 'Admin';
+  const isAdminOrManager = isAdmin;
+  const displayRole = user?.role || 'Employee';
 
   // Fetch Tasks
   const { data: tasksData, isLoading: tasksLoading, refetch: refetchTasks } = useQuery(
     ['recentTasks', user?.id, displayRole],
     async () => {
-      const params = {};
-      if (!isAdminOrManager) {
-        params.assignee = user?.id;
-      }
-      const res = await api.get('/tasks', { params });
+      const token = localStorage.getItem('hrmis_token');
+      const res = await api.get('/tasks', {
+        params,
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return res.data || [];
     },
-    { enabled: !!user?.id }
+    { enabled: !!user?.id && user?.id !== 'unknown' }
   );
 
   // Fetch Leaves
   const { data: leavesData, isLoading: leavesLoading, refetch: refetchLeaves } = useQuery(
     ['recentLeaves', user?.id, displayRole],
     async () => {
-      const params = {};
-      if (!isAdminOrManager) {
-        params.userId = user?.id;
-      }
-      const res = await api.get('/leaves', { params });
+      const token = localStorage.getItem('hrmis_token');
+      const res = await api.get('/leaves', {
+        params,
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       return res.data || [];
     },
-    { enabled: !!user?.id }
+    { enabled: !!user?.id && user?.id !== 'unknown' }
   );
 
   const handleSync = () => {
@@ -148,7 +150,8 @@ export default function Dashboard() {
           <h1 className="text-4xl font-black text-gray-900 mb-2 tracking-tight">
             Welcome back, <span className="text-indigo-600 underline decoration-indigo-200 decoration-8 underline-offset-4">{user?.name ?? 'Guest'}</span>!
           </h1>
-          <p className="text-gray-500 text-lg font-medium">Monitoring your workspace in real-time.</p>
+          <p className="text-gray-500 text-lg font-bold italic mb-1">{user?.designation || 'Workspace Member'}</p>
+          <p className="text-indigo-400 text-sm font-black uppercase tracking-[0.2em]">{user?.department || 'Operations'}</p>
           <div className="mt-6 flex space-x-3">
             <span className="inline-flex items-center px-6 py-2 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white shadow-lg shadow-indigo-100">
               {displayRole}

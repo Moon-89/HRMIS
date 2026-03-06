@@ -13,7 +13,12 @@ export default function TaskForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const { data: usersData, isLoading: loadingUsers } = useQuery('users', async () => {
-    const res = await api.get('/users');
+    const token = localStorage.getItem('hrmis_token');
+    const res = await api.get('/users', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     return res.data;
   }, { staleTime: 300000 });
 
@@ -24,7 +29,12 @@ export default function TaskForm() {
     setSubmitting(true);
     try {
       const payload = { ...form, assignee: form.assignee || currentUser?.id };
-      await api.post('/tasks', payload);
+      const token = localStorage.getItem('hrmis_token');
+      await api.post('/tasks', payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       qc.invalidateQueries('tasks');
       toast.success('Task successfully created!');
       navigate('/tasks');

@@ -12,15 +12,17 @@ export default function LeaveDetail() {
   const { user } = useAuth();
 
   // Role handling
-  const isMemonaAdmin =
-    user?.email?.toLowerCase()?.trim() === 'memona@hrmis.com' ||
-    user?.email?.toLowerCase()?.trim() === 'memona@hrmis';
-  const displayRole = isMemonaAdmin ? 'Admin' : (user?.role || 'Employee');
-  const isAdminOrManager =
-    displayRole.toLowerCase() === 'admin' || displayRole.toLowerCase() === 'manager';
+  const isAdmin = user?.role === 'Admin';
+  const isAdminOrManager = isAdmin;
+  const displayRole = user?.role || 'Employee';
 
   const { data: leave, isLoading, isError } = useQuery(['leave', id], async () => {
-    const res = await api.get(`/leaves/${id}`);
+    const token = localStorage.getItem('hrmis_token');
+    const res = await api.get(`/leaves/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     return res.data;
   }, {
     retry: 1,
@@ -28,7 +30,12 @@ export default function LeaveDetail() {
   });
 
   const del = useMutation(async () => {
-    await api.delete(`/leaves/${id}`);
+    const token = localStorage.getItem('hrmis_token');
+    await api.delete(`/leaves/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
   }, {
     onSuccess: () => {
       qc.invalidateQueries('leaves');
@@ -38,7 +45,12 @@ export default function LeaveDetail() {
   });
 
   const updateStatus = useMutation(async (status) => {
-    await api.put(`/leaves/${id}`, { status });
+    const token = localStorage.getItem('hrmis_token');
+    await api.put(`/leaves/${id}`, { status }, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
   }, {
     onSuccess: () => {
       qc.invalidateQueries(['leave', id]);

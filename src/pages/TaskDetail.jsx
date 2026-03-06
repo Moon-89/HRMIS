@@ -11,10 +11,15 @@ export default function TaskDetail() {
   const qc = useQueryClient();
   const { user } = useAuth();
 
-  const isAdminOrManager = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager' || user?.email?.toLowerCase()?.includes('memona@hrmis');
+  const isAdminOrManager = user?.role === 'Admin';
 
   const { data: task, isLoading, isError } = useQuery(['task', id], async () => {
-    const res = await api.get(`/tasks/${id}`);
+    const token = localStorage.getItem('hrmis_token');
+    const res = await api.get(`/tasks/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     return res.data;
   }, {
     retry: 1,
@@ -22,13 +27,23 @@ export default function TaskDetail() {
   });
 
   const { data: usersData } = useQuery('users', async () => {
-    const res = await api.get('/users');
+    const token = localStorage.getItem('hrmis_token');
+    const res = await api.get('/users', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     return res.data;
   }, { staleTime: 300000 });
   const usersList = Array.isArray(usersData) ? usersData : [];
 
   const del = useMutation(async () => {
-    await api.delete(`/tasks/${id}`);
+    const token = localStorage.getItem('hrmis_token');
+    await api.delete(`/tasks/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
   }, {
     onSuccess: () => {
       qc.invalidateQueries('tasks');

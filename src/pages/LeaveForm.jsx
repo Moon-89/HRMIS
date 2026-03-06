@@ -13,12 +13,9 @@ export default function LeaveForm() {
   const [submitting, setSubmitting] = useState(false);
 
   // Role check: Only Employees can request leave
-  const isMemonaAdmin =
-    user?.email?.toLowerCase()?.trim() === 'memona@hrmis.com' ||
-    user?.email?.toLowerCase()?.trim() === 'memona@hrmis';
-  const displayRole = isMemonaAdmin ? 'Admin' : (user?.role || 'Employee');
+  const displayRole = user?.role || 'Employee';
 
-  if (displayRole !== 'Employee') {
+  if (displayRole === 'Admin') {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 text-center">
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
@@ -45,11 +42,15 @@ export default function LeaveForm() {
     setSubmitting(true);
     try {
       const payload = { ...form, userId: user?.id, status: 'Pending' };
-
-      // Use the api instance instead of direct fetch to handle tokens and base URL correctly
-      await api.post('/leaves', payload);
+      const token = localStorage.getItem('hrmis_token');
+      await api.post('/leaves', payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
       qc.invalidateQueries('leaves');
+      alert('Success! Your leave request has been submitted.');
       toast.success('Leave request submitted successfully');
       navigate('/leaves');
     } catch (err) {

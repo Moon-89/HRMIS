@@ -11,7 +11,12 @@ export default function EditTask() {
   const [form, setForm] = useState({ title: '', description: '', priority: 'Medium', status: 'Todo', assignee: '' });
 
   const { data: usersData } = useQuery('users', async () => {
-    const res = await api.get('/users');
+    const token = localStorage.getItem('hrmis_token');
+    const res = await api.get('/users', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     return res.data;
   });
 
@@ -20,7 +25,12 @@ export default function EditTask() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get(`/tasks/${id}`);
+        const token = localStorage.getItem('hrmis_token');
+        const res = await api.get(`/tasks/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         setTask(res.data);
         setForm({ title: res.data.title || '', description: res.data.description || '', priority: res.data.priority || 'Medium', status: res.data.status || 'Todo', assignee: res.data.assignee || '' });
       } catch (e) {
@@ -32,7 +42,12 @@ export default function EditTask() {
   const onSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api.put(`/tasks/${id}`, form);
+      const token = localStorage.getItem('hrmis_token');
+      await api.put(`/tasks/${id}`, form, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       navigate(`/tasks/${id}`);
     } catch (e) {
       toast.error('Update failed');
@@ -125,7 +140,7 @@ export default function EditTask() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/tasks/${id}`)}
+              onClick={() => navigate(`/api/tasks/${id}`)}
               className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-all"
             >
               Cancel

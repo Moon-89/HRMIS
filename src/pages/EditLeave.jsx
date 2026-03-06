@@ -20,7 +20,12 @@ export default function EditLeave() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get(`/leaves/${id}`);
+        const token = localStorage.getItem('hrmis_token');
+        const res = await api.get(`/leaves/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         const leaveData = res.data;
 
         // Ownership check: Only owner can edit
@@ -55,7 +60,12 @@ export default function EditLeave() {
 
     try {
       const payload = { ...form, userId: user.id };
-      await api.put(`/leaves/${id}`, payload);
+      const token = localStorage.getItem('hrmis_token');
+      await api.put(`/leaves/${id}`, payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       toast.success('Leave request updated successfully');
       navigate(`/leaves/${id}`);
     } catch (err) {

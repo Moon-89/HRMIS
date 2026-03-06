@@ -5,11 +5,25 @@ let accessToken = typeof window !== 'undefined' ? localStorage.getItem('hrmis_to
 export const getAccessToken = () => accessToken;
 export const setAccessToken = (t) => { accessToken = t; };
 
-// Sab calls '/api' se start hongi.
-// Local dev mein setupProxy.js piche jaye ga.
-// Vercel pe vercel.json ya api/index.js proxy kare ga.
+// Base URL: always talk directly to the live backend
+// Works on localhost AND Vercel (CORS is enabled on the API)
+// Base URL: fixed to include /api prefix for consistency
+// Base URL: In development, we use the local proxy bridge (/api)
+// In production, we use the absolute URL via Vercel rewrites
+const BASE_URL = process.env.NODE_ENV === 'development' ? '/api' : 'https://hrmis-api.devfamz.com/api';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: BASE_URL,
+  withCredentials: false,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+// Raw client WITHOUT interceptors
+const raw = axios.create({
+  baseURL: BASE_URL,
   withCredentials: false,
   headers: {
     'Content-Type': 'application/json',
@@ -19,7 +33,7 @@ const api = axios.create({
 
 // Interceptor for Auth Header
 api.interceptors.request.use((config) => {
-  const token = getAccessToken();
+  const token = localStorage.getItem('hrmis_token');
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -44,8 +58,8 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    // Don't refresh on login/register/refresh itself
-    if (original?.url?.includes('/auth/') && original?.url !== '/auth/refresh') {
+    // URLs here are relative to baseURL, so no /api/ prefix needed
+    if (['/auth/login', '/auth/register', '/auth/refresh'].includes(original?.url)) {
       return Promise.reject(error);
     }
 
@@ -70,8 +84,8 @@ api.interceptors.response.use(
         const rfToken = localStorage.getItem('hrmis_refresh');
         if (!rfToken) throw new Error('No refresh token');
 
-        const res = await axios.post('/api/auth/refresh', { refreshToken: rfToken });
-        const newToken = res.data.accessToken;
+        const res = await raw.post('/auth/refresh', { refreshToken: rfToken });
+        const newToken = res.data.accessToken || res.data.token || res.data.access_token;
 
         setAccessToken(newToken);
         localStorage.setItem('hrmis_token', newToken);

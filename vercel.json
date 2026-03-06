@@ -7,14 +7,14 @@
             "includeFiles": "api/**"
         }
     },
-    "routes": [
+    "rewrites": [
         {
-            "src": "/api/(.*)",
-            "dest": "/api/index.js"
+            "source": "/api/:path*",
+            "destination": "https://hrmis-api.devfamz.com/api/:path*"
         },
         {
-            "src": "/(.*)",
-            "dest": "/index.html"
+            "source": "/(.*)",
+            "destination": "/index.html"
         }
     ],
     "headers": [
