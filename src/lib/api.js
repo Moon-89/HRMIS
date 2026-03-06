@@ -10,7 +10,7 @@ export const setAccessToken = (t) => { accessToken = t; };
 // Base URL: fixed to include /api prefix for consistency
 // Base URL: In development, we use the local proxy bridge (/api)
 // In production, we use the absolute URL via Vercel rewrites
-const BASE_URL = process.env.NODE_ENV === 'development' ? '/api' : 'https://hrmis-api.devfamz.com/api';
+const BASE_URL = 'https://hrmis-api.devfamz.com/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

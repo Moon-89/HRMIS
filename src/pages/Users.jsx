@@ -65,7 +65,7 @@ export default function Users() {
     if (!window.confirm('Are you sure you want to delete this user? This action is permanent.')) return;
     try {
       const token = localStorage.getItem('hrmis_token');
-      await api.delete(`/api/users/${id}`, {
+      await api.delete(`/users/${id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

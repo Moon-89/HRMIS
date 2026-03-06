@@ -14,6 +14,10 @@ export default function Dashboard() {
   const { data: tasksData, isLoading: tasksLoading, refetch: refetchTasks } = useQuery(
     ['recentTasks', user?.id, displayRole],
     async () => {
+      const params = {};
+      if (!isAdminOrManager) {
+        params.assignee = user?.id;
+      }
       const token = localStorage.getItem('hrmis_token');
       const res = await api.get('/tasks', {
         params,
@@ -30,6 +34,10 @@ export default function Dashboard() {
   const { data: leavesData, isLoading: leavesLoading, refetch: refetchLeaves } = useQuery(
     ['recentLeaves', user?.id, displayRole],
     async () => {
+      const params = {};
+      if (!isAdminOrManager) {
+        params.userId = user?.id;
+      }
       const token = localStorage.getItem('hrmis_token');
       const res = await api.get('/leaves', {
         params,
