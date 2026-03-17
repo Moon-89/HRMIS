@@ -100,10 +100,10 @@ export const AuthProvider = ({ children }) => {
     verifySession();
     setSessionExpiredCallback(() => logout());
 
-    // Auto-refresh token every 10 minutes (600 seconds)
+    // Auto-refresh token every 60 minutes (3600 seconds) to match expires_in
     const refreshInterval = setInterval(() => {
       verifySession();
-    }, 600000);
+    }, 3600000);
 
     return () => clearInterval(refreshInterval);
   }, []);
