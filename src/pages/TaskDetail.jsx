@@ -66,103 +66,165 @@ export default function TaskDetail() {
     }
   };
 
-  const assigneeUser = usersList.find(u => String(u.id) === String(task.assigned_to || task.assignee));
+  // Handle both ID-based and Object-based assignee data
+  const getAssigneeInfo = () => {
+    const rawData = task.assigned_to || task.assignee;
+    if (!rawData) return { name: 'Unassigned', email: 'No email associated', role: 'None', initial: '?' };
+
+    if (typeof rawData === 'object') {
+      return {
+        name: rawData.name || 'Unknown',
+        email: rawData.email || 'No email associated',
+        role: rawData.role || 'Member',
+        initial: (rawData.name || 'U').charAt(0).toUpperCase()
+      };
+    }
+
+    const found = usersList.find(u => String(u.id) === String(rawData));
+    return {
+      name: found?.name || `User #${rawData}`,
+      email: found?.email || 'No email associated',
+      role: found?.role || 'Member',
+      initial: (found?.name || 'U').charAt(0).toUpperCase()
+    };
+  };
+
+  const assigneeInfo = getAssigneeInfo();
+
+  const getStatusProgress = (s) => {
+    switch (s) {
+      case 'Done': return '100%';
+      case 'InProgress': return '60%';
+      default: return '15%';
+    }
+  };
+
+  // Robust data extraction with fallbacks
+  const tTitle = task?.title || task?.name || task?.task_title || 'Untitled Objective';
+  const tDesc = task?.description || task?.desc || task?.details || 'No detailed documentation provided.';
+  const tCreated = task?.createdAt || task?.created_at || task?.timestamp || task?.date;
+  const tUpdated = task?.updatedAt || task?.updated_at || tCreated;
+  const tAssignedTime = task?.assignedAt || task?.assigned_at || tCreated;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 transition-colors duration-300">
-      <div className="mb-6">
-        <button onClick={() => navigate('/tasks')} className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 flex items-center gap-1 transition-all hover:-translate-x-1">
-          ← Back to Task Board
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 transition-colors duration-300">
+      <div className="mb-8 flex items-center justify-between">
+        <button onClick={() => navigate('/tasks')} className="group flex items-center gap-2 text-sm font-black text-gray-400 dark:text-gray-500 hover:text-indigo-600 transition-all">
+          <span className="group-hover:-translate-x-1 transition-transform">←</span> BACK TO TASKS
         </button>
+        
       </div>
 
-      <div className="bg-white dark:bg-[#111114]/80 backdrop-blur-3xl shadow-2xl rounded-3xl overflow-hidden border border-gray-100 dark:border-white/5 transition-colors duration-300">
-        <div className="px-8 py-10 bg-gradient-to-br from-indigo-600 to-indigo-900 text-white">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full border border-white/20 bg-white/10 text-white shadow-sm`}>
-                  {task.priority || 'Medium'} Priority
+      <div className="bg-white dark:bg-[#111114]/80 backdrop-blur-3xl shadow-2xl rounded-[2.5rem] overflow-hidden border border-gray-100 dark:border-white/5 transition-colors">
+        {/* Top Header Section */}
+        <div className="relative px-8 py-12 bg-gradient-to-br from-indigo-700 via-indigo-800 to-indigo-950 text-white overflow-hidden">
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-4">
+                <span className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-white/20 bg-white/10 shadow-lg backdrop-blur-md`}>
+                  {task.priority || 'Medium'} PRIORITY
                 </span>
-                <span className="text-indigo-200 text-xs font-bold tracking-widest uppercase">Task #{task.id}</span>
+
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight">{task.title}</h1>
+              <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.1] mb-2">{tTitle}</h1>
+              <p className="text-indigo-200/60 text-xs font-black tracking-[0.3em] uppercase">System Registry ID: {task?.id}</p>
             </div>
-            <div className={`px-4 py-2 rounded-2xl text-sm font-extrabold uppercase tracking-widest shadow-inner ${getStatusColor(task.status)} transition-colors`}>
-              {task.status === 'InProgress' ? 'In Progress' : (task.status || 'Todo')}
+            <div className="flex flex-col items-end gap-3">
+              <div className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl ${getStatusColor(task?.status)} border-2 border-white/10`}>
+                {task?.status === 'InProgress' ? 'In Progress' : (task?.status || 'Todo')}
+              </div>
             </div>
           </div>
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-48 -mt-48"></div>
         </div>
 
-        <div className="p-8 space-y-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] leading-loose">Assigned To</label>
-              <div className="flex items-center gap-4 bg-gray-50 dark:bg-white/[0.02] p-4 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm transition-all duration-300">
-                <div className="h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 border-2 border-white dark:border-white/10 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-black text-xl shadow-sm transition-colors">
-                  {(assigneeUser?.name || 'U').charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-extrabold text-gray-900 dark:text-white leading-none transition-colors">{assigneeUser?.name || 'Unassigned'}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1.5 transition-colors">{assigneeUser?.email || 'No email associated'}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] leading-loose">Timestamps</label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-white/[0.02] p-4 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm text-center transition-colors">
-                  <p className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1">Created</p>
-                  <p className="text-xs font-extrabold text-gray-700 dark:text-gray-300">
-                    {task.createdAt ? new Date(task.createdAt).toLocaleDateString() : 'N/A'}
-                  </p>
-                </div>
-                <div className="bg-white dark:bg-white/[0.02] p-4 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm text-center transition-colors">
-                  <p className="text-[10px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1">Updated</p>
-                  <p className="text-xs font-extrabold text-gray-700 dark:text-gray-300">
-                    {task.updatedAt ? new Date(task.updatedAt).toLocaleDateString() : 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] leading-loose">Task Description</label>
-            <div className="bg-indigo-50/30 dark:bg-indigo-900/10 p-8 rounded-3xl border border-indigo-50 dark:border-indigo-500/10 text-gray-700 dark:text-gray-300 leading-relaxed text-lg shadow-inner italic transition-all duration-300">
-              {task.description || 'No description provided for this task.'}
-            </div>
-          </div>
+        {/* Unified Progress Bar */}
+        <div className="h-2 bg-gray-100 dark:bg-white/5 w-full relative">
+          <div 
+            className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(99,102,241,0.5)]"
+            style={{ width: getStatusProgress(task?.status) }}
+          ></div>
         </div>
 
-        <div className="px-8 py-6 bg-gray-50 dark:bg-white/[0.02] flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-gray-100 dark:border-white/5 transition-colors">
-          <div className="flex gap-3 w-full sm:w-auto">
-            <button
-              onClick={() => navigate('/tasks')}
-              className="flex-1 sm:flex-none px-6 py-3 text-sm font-bold text-gray-500 dark:text-gray-400 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 transition-all"
-            >
-              Go Back
-            </button>
-          </div>
+        <div className="p-8 md:p-12 space-y-12">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+            
+            {/* Left Column: Details */}
+            <div className="lg:col-span-2 space-y-10">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-1.5 h-6 bg-indigo-600 rounded-full"></span>
+                  <label className="text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Objective Overview</label>
+                </div>
+                <div className="bg-gray-50 dark:bg-white/[0.02] p-8 rounded-[2rem] border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 leading-relaxed text-lg shadow-inner font-medium transition-colors">
+                  {tDesc}
+                </div>
+              </div>
 
-          {isAdminOrManager && (
-            <div className="flex gap-3 w-full sm:w-auto">
-              <button
-                onClick={() => navigate(`/tasks/${task.id}/edit`)}
-                className="flex-1 sm:flex-none px-8 py-3 text-sm font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-500/20 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all"
-              >
-                Edit Task
-              </button>
-              <button
-                onClick={() => { if (window.confirm('Delete this task physically?')) del.mutate(); }}
-                disabled={del.isLoading}
-                className="flex-1 sm:flex-none px-8 py-3 text-sm font-bold text-white bg-rose-500 dark:bg-rose-600 rounded-xl hover:bg-rose-600 dark:hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 dark:shadow-none disabled:opacity-50"
-              >
-                Delete Task
-              </button>
+              {/* Meta Data Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="p-8 bg-white dark:bg-white/[0.01] border border-gray-100 dark:border-white/5 rounded-[2rem] transition-colors group hover:border-indigo-500/30 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-2xl">🕒</span>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Assigned On</p>
+                  </div>
+                  <p className="text-lg font-black text-gray-900 dark:text-white leading-tight">
+                    {tAssignedTime ? new Date(tAssignedTime).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'}
+                  </p>
+                  <p className="text-xs font-bold text-indigo-500 mt-1 uppercase">
+                    Time: {tAssignedTime ? new Date(tAssignedTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                  </p>
+                </div>
+
+                <div className="p-8 bg-white dark:bg-white/[0.01] border border-gray-100 dark:border-white/5 rounded-[2rem] transition-colors group hover:border-emerald-500/30 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-2xl">🔄</span>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Updated</p>
+                  </div>
+                  <p className="text-lg font-black text-gray-900 dark:text-white leading-tight">
+                    {tUpdated ? new Date(tUpdated).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'}
+                  </p>
+                  <p className="text-xs font-bold text-emerald-500 mt-1 uppercase">
+                    Time: {tUpdated ? new Date(tUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* Right Column: Stakeholder Info */}
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
+                  <label className="text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Assigned Details</label>
+                </div>
+                <div className="bg-gradient-to-br from-gray-50 to-white dark:from-white/[0.02] dark:to-transparent p-8 rounded-[2.5rem] border border-gray-100 dark:border-white/5 shadow-xl transition-all duration-500 hover:scale-[1.02]">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="h-24 w-24 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 p-1 mb-6 shadow-2xl">
+                      <div className="h-full w-full rounded-full bg-white dark:bg-neutral-900 border-4 border-white dark:border-black flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-3xl transition-colors">
+                        {assigneeInfo.initial}
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1 transition-colors">{assigneeInfo.name}</h3>
+                    <p className="text-indigo-600 dark:text-indigo-400 text-xs font-black uppercase tracking-widest mb-4">{assigneeInfo.role}</p>
+                    <div className="w-full h-px bg-gray-100 dark:bg-white/5 mb-4"></div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 font-bold truncate w-full italic transition-colors">{assigneeInfo.email}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Container */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => navigate('/tasks')}
+                  className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-xl shadow-indigo-100 dark:shadow-none hover:-translate-y-1 active:scale-95"
+                >
+                  Return to Task List
+                </button>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
