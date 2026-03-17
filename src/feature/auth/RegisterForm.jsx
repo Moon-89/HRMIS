@@ -30,7 +30,6 @@ export default function RegisterForm() {
         email: data.email,
         password: data.password,
         password_confirmation: data.confirm,
-        // Backend requires these fields — sending defaults (not shown in UI)
         department: 'General',
         designation: 'Employee',
         phone: '00000000000',
@@ -47,7 +46,6 @@ export default function RegisterForm() {
         toast.success('Account created! Please login.');
       }
     } catch (err) {
-      // Check for validation errors from backend
       const validationErrors = err?.response?.data?.errors;
       if (validationErrors) {
         const firstError = Object.values(validationErrors).flat()[0];
@@ -61,89 +59,92 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex min-h-screen bg-white dark:bg-[#0a0a0c] transition-colors duration-300">
       {/* Left Side - Visual */}
       <div className="hidden lg:flex lg:w-1/3 relative bg-gradient-to-br from-indigo-700 to-violet-900 overflow-hidden items-center justify-center p-12">
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-2xl -translate-x-1/4 translate-y-1/4"></div>
+        </div>
         <div className="relative z-10 text-center text-white">
-          <h1 className="text-6xl font-black tracking-tighter mb-6">HRMIS</h1>
-          <div className="h-1 w-20 bg-indigo-400 mx-auto mb-8"></div>
-          <p className="text-xl text-indigo-100 font-medium leading-relaxed">
-            Join the professional workforce management system.
+          <h1 className="text-7xl font-black tracking-tighter mb-6 border-b-4 border-white inline-block px-4">HRMIS</h1>
+          <p className="text-2xl text-indigo-50 font-medium italic opacity-90 leading-relaxed max-w-xs mx-auto">
+            Join the digital forefront of HR management.
           </p>
         </div>
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl"></div>
       </div>
 
       {/* Right Side - Form */}
-      <div className="flex-1 flex flex-col justify-center py-12 px-6 sm:px-12 lg:w-2/3 bg-gray-50 overflow-y-auto">
+      <div className="flex-1 flex flex-col justify-center py-12 px-6 sm:px-12 lg:w-2/3 bg-gray-50 dark:bg-transparent overflow-y-auto transition-colors">
         <div className="mx-auto w-full max-w-lg">
-          <div className="mb-10">
-            <h2 className="text-4xl font-black text-gray-900 tracking-tight">Create Account</h2>
-            <p className="mt-3 text-gray-500 font-medium italic">Complete the form to get started</p>
+          <div className="mb-10 text-center lg:text-left">
+            <h2 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight transition-colors">Create Account</h2>
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 font-medium italic transition-colors">Digital Enrollment Phase</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-6 not-italic">
             {/* Name */}
             <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Full Name</label>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2 transition-colors">Full Name</label>
               <input
                 {...register('name')}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-800 font-medium"
+                className="w-full px-5 py-4 bg-white dark:bg-white/[0.03] border-2 border-transparent dark:border-white/5 focus:border-indigo-600 dark:focus:border-indigo-400 rounded-2xl outline-none font-bold text-gray-800 dark:text-gray-100 transition-all placeholder:text-gray-300 dark:placeholder:text-gray-600 shadow-sm"
                 placeholder="e.g. Ali Khan"
               />
-              {errors.name && <p className="mt-1 text-xs text-rose-500 font-bold">{errors.name.message}</p>}
+              {errors.name && <p className="mt-2 text-xs font-bold text-rose-500 uppercase italic transition-colors">{errors.name.message}</p>}
             </div>
 
             {/* Email */}
             <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Email Address</label>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2 transition-colors">Personal ID (Email)</label>
               <input
                 {...register('email')}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-800 font-medium"
+                className="w-full px-5 py-4 bg-white dark:bg-white/[0.03] border-2 border-transparent dark:border-white/5 focus:border-indigo-600 dark:focus:border-indigo-400 rounded-2xl outline-none font-bold text-gray-800 dark:text-gray-100 transition-all placeholder:text-gray-300 dark:placeholder:text-gray-600 shadow-sm"
                 placeholder="name@company.com"
               />
-              {errors.email && <p className="mt-1 text-xs text-rose-500 font-bold">{errors.email.message}</p>}
+              {errors.email && <p className="mt-2 text-xs font-bold text-rose-500 uppercase italic transition-colors">{errors.email.message}</p>}
             </div>
 
             {/* Password */}
-            <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Password</label>
-              <input
-                type="password"
-                {...register('password')}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-800 font-medium"
-                placeholder="••••••••"
-              />
-              {errors.password && <p className="mt-1 text-xs text-rose-500 font-bold">{errors.password.message}</p>}
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2 transition-colors">Password</label>
+                <input
+                  type="password"
+                  {...register('password')}
+                  className="w-full px-5 py-4 bg-white dark:bg-white/[0.03] border-2 border-transparent dark:border-white/5 focus:border-indigo-600 dark:focus:border-indigo-400 rounded-2xl outline-none font-bold text-gray-800 dark:text-gray-100 transition-all placeholder:text-gray-300 dark:placeholder:text-gray-600 shadow-sm transition-colors"
+                  placeholder="••••••••"
+                />
+                {errors.password && <p className="mt-2 text-xs font-bold text-rose-500 uppercase italic transition-colors">{errors.password.message}</p>}
+              </div>
 
-            {/* Confirm */}
-            <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Confirm</label>
-              <input
-                type="password"
-                {...register('confirm')}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-gray-800 font-medium"
-                placeholder="••••••••"
-              />
-              {errors.confirm && <p className="mt-1 text-xs text-rose-500 font-bold">{errors.confirm.message}</p>}
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-2 transition-colors">Confirm Password</label>
+                <input
+                  type="password"
+                  {...register('confirm')}
+                  className="w-full px-5 py-4 bg-white dark:bg-white/[0.03] border-2 border-transparent dark:border-white/5 focus:border-indigo-600 dark:focus:border-indigo-400 rounded-2xl outline-none font-bold text-gray-800 dark:text-gray-100 transition-all placeholder:text-gray-300 dark:placeholder:text-gray-600 shadow-sm transition-colors"
+                  placeholder="••••••••"
+                />
+                {errors.confirm && <p className="mt-2 text-xs font-bold text-rose-500 uppercase italic transition-colors">{errors.confirm.message}</p>}
+              </div>
             </div>
 
             {/* Submit */}
-            <div className="pt-4">
+            <div className="pt-6">
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-full py-5 bg-indigo-600 dark:bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-sm shadow-xl shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 dark:hover:bg-indigo-700 hover:-translate-y-1 active:scale-95 transition-all transition-colors ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {isSubmitting ? 'Processing...' : 'Create My Account'}
+                {isSubmitting ? 'Processing Registration...' : 'Register'}
               </button>
             </div>
 
-            <div className="text-center mt-4">
-              <p className="text-sm font-bold text-gray-400">
-                Already part of the team? <a href="/login" className="text-indigo-600 hover:underline">Login here</a>
+            <div className="text-center mt-6">
+              <p className="text-xs font-bold text-gray-500 dark:text-gray-500 uppercase tracking-widest transition-colors">
+                Already created account?{' '}
+                <a href="/login" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-all font-black">LOGIN HERE</a>
               </p>
             </div>
           </form>

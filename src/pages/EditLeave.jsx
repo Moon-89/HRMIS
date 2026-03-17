@@ -20,12 +20,7 @@ export default function EditLeave() {
   useEffect(() => {
     (async () => {
       try {
-        const token = localStorage.getItem('hrmis_token');
-        const res = await api.get(`/leaves/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const res = await api.get(`/leaves/${id}`);
         const leaveData = res.data;
 
         // Ownership check: Only owner can edit
@@ -60,12 +55,7 @@ export default function EditLeave() {
 
     try {
       const payload = { ...form, userId: user.id };
-      const token = localStorage.getItem('hrmis_token');
-      await api.put(`/leaves/${id}`, payload, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      await api.put(`/leaves/${id}`, payload);
       toast.success('Leave request updated successfully');
       navigate(`/leaves/${id}`);
     } catch (err) {
@@ -75,7 +65,7 @@ export default function EditLeave() {
   };
 
   if (loading) return (
-    <div className="flex justify-center items-center h-screen -mt-24">
+    <div className="flex justify-center items-center h-screen -mt-24 transition-colors">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
     </div>
   );
@@ -83,8 +73,8 @@ export default function EditLeave() {
   if (!isOwner) return null;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="bg-white shadow-2xl rounded-3xl overflow-hidden border border-gray-100">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12 transition-colors duration-300">
+      <div className="bg-white dark:bg-[#111114]/80 backdrop-blur-3xl shadow-2xl rounded-3xl overflow-hidden border border-gray-100 dark:border-white/5 transition-colors duration-300">
         <div className="px-8 py-10 bg-gradient-to-br from-indigo-600 to-violet-700 text-white">
           <h2 className="text-3xl font-extrabold tracking-tight">Edit Leave Request</h2>
           <p className="mt-2 text-indigo-100 opacity-90">Modify the details of your leave request below.</p>
@@ -93,35 +83,35 @@ export default function EditLeave() {
         <form onSubmit={onSubmit} className="p-8 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">Start Date</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider transition-colors">Start Date</label>
               <input
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-                className="block w-full px-4 py-3 rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-gray-50 border"
+                className="block w-full px-4 py-3 rounded-xl border-gray-200 dark:border-white/10 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-gray-50 dark:bg-white/5 border dark:text-gray-200"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">End Date</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider transition-colors">End Date</label>
               <input
                 type="date"
                 value={form.endDate}
                 onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-                className="block w-full px-4 py-3 rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-gray-50 border"
+                className="block w-full px-4 py-3 rounded-xl border-gray-200 dark:border-white/10 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-gray-50 dark:bg-white/5 border dark:text-gray-200"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-bold text-gray-700 uppercase tracking-wider">Reason</label>
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider transition-colors">Reason</label>
             <textarea
               value={form.reason}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
               rows={5}
-              className="block w-full px-4 py-3 rounded-xl border-gray-200 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-gray-50 border"
+              className="block w-full px-4 py-3 rounded-xl border-gray-200 dark:border-white/10 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-gray-50 dark:bg-white/5 border dark:text-gray-200 transition-colors"
               placeholder="Please provide a reason for your leave request..."
               required
             />
@@ -130,14 +120,14 @@ export default function EditLeave() {
           <div className="pt-4 flex flex-col sm:flex-row gap-4">
             <button
               type="submit"
-              className="flex-1 bg-indigo-600 text-white font-bold py-4 px-6 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all transform hover:-translate-y-1"
+              className="flex-1 bg-indigo-600 dark:bg-indigo-500 text-white font-bold py-4 px-6 rounded-2xl hover:bg-indigo-700 dark:hover:bg-indigo-600 shadow-xl shadow-indigo-200 dark:shadow-none transition-all transform hover:-translate-y-1 transition-colors"
             >
               Update Request
             </button>
             <button
               type="button"
               onClick={() => navigate(`/leaves/${id}`)}
-              className="flex-1 bg-white text-gray-700 font-bold py-4 px-6 rounded-2xl border-2 border-gray-100 hover:bg-gray-50 transition-all"
+              className="flex-1 bg-white dark:bg-white/5 text-gray-700 dark:text-gray-300 font-bold py-4 px-6 rounded-2xl border-2 border-gray-100 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10 transition-all transition-colors"
             >
               Cancel
             </button>

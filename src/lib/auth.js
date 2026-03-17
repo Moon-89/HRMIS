@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import api, { setSessionExpiredCallback, setAccessToken } from './api';
+import api, { setSessionExpiredCallback, setAccessToken, raw } from './api';
 import { toast } from 'react-toastify';
 
 const AuthContext = createContext(null);
@@ -55,31 +55,41 @@ export const AuthProvider = ({ children }) => {
         const d = res.data;
         const token = d.accessToken || d.token || d.access_token;
         if (token) {
+          setAccessTokenState(token);
+          setAccessToken(token);
+          localStorage.setItem('hrmis_token', token);
+
+          if (d.refreshToken || d.refresh_token) {
+            localStorage.setItem('hrmis_refresh', d.refreshToken || d.refresh_token);
+          }
+
           let userData = d.user || d.data;
           const effectiveEmail = (userData?.email || d?.email || '').toLowerCase();
 
-          // Reconstruct user if missing from refresh response
+
+
+          // Reconstruct if still missing
           if (!userData && effectiveEmail) {
             userData = {
-              id: d.id || 'unknown',
-              name: effectiveEmail === 'memona@hrmis.com' ? 'Memona' : 'User',
+              id: d._id || d.id || d.userId || d.sub || null,
+              name: d.name || effectiveEmail.split('@')[0],
               email: effectiveEmail,
-              role: (effectiveEmail === 'memona@hrmis.com') ? 'Admin' : 'Employee'
+              role: 'Employee'
             };
           }
 
           if (userData) {
+            userData.id = extractId(userData) || extractId(d) || d.sub || userData.id;
+
+            let role = userData.role || 'Employee';
+            role = role.trim().charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+
             if (userData.email?.toLowerCase() === 'memona@hrmis.com' || effectiveEmail === 'memona@hrmis.com') {
               userData.role = 'Admin';
             } else {
-              userData.role = userData.role || 'Employee';
+              userData.role = role;
             }
             setUser(userData);
-          }
-
-          setAccessTokenState(token);
-          if (d.refreshToken || d.refresh_token) {
-            localStorage.setItem('hrmis_refresh', d.refreshToken || d.refresh_token);
           }
         }
       } catch (e) {
@@ -98,56 +108,87 @@ export const AuthProvider = ({ children }) => {
     return () => clearInterval(refreshInterval);
   }, []);
 
-  const handleLoginSuccess = (res, loginEmail = null) => {
+  // Helper: extract user ID from any possible field in a response object
+  const extractId = (obj) => {
+    if (!obj) return null;
+    return obj.id || obj._id || obj.userId || obj.user_id || obj.sub || null;
+  };
+
+
+
+  const handleLoginSuccess = async (res, loginEmail = null) => {
     const d = res.data;
+    console.log('[AUTH] Login response data:', JSON.stringify(d, null, 2));
+
     const token = d.accessToken || d.token || d.access_token;
     let userData = d.user || d.data;
     const effectiveEmail = (userData?.email || d?.email || loginEmail || '').toLowerCase();
 
-    // Reconstruct user if backend response is empty (very common in this project)
-    if (!userData && effectiveEmail) {
-      userData = {
-        id: d.id || 'unknown',
-        name: effectiveEmail === 'memona@hrmis.com' ? 'Memona' : 'User',
-        email: effectiveEmail,
-        role: (effectiveEmail === 'memona@hrmis.com') ? 'Admin' : 'Employee'
-      };
-    }
-
-    if (userData) {
-      if (userData.email?.toLowerCase() === 'memona@hrmis.com' || effectiveEmail === 'memona@hrmis.com') {
-        userData.role = 'Admin';
-      } else {
-        userData.role = userData.role || 'Employee';
-      }
-      setUser(userData);
-    }
-
+    // Save token first so subsequent API calls work
     if (token) {
       setAccessTokenState(token);
-      setAccessToken(token); // Sync with API immediately
+      setAccessToken(token);
+      localStorage.setItem('hrmis_token', token);
     }
 
     if (d.refreshToken || d.refresh_token) {
       localStorage.setItem('hrmis_refresh', d.refreshToken || d.refresh_token);
     }
+
+
+
+    // Reconstruct user if still missing — but extract ID from ALL possible fields
+    if (!userData && effectiveEmail) {
+      const userId = extractId(d) || d.sub || null;
+      userData = {
+        id: userId,
+        name: d.name || effectiveEmail.split('@')[0],
+        email: effectiveEmail,
+        role: 'Employee'
+      };
+      console.log('[AUTH] Reconstructed user:', JSON.stringify(userData, null, 2));
+    }
+
+    if (userData) {
+      // Ensure ID is properly set, checking both the user object and the top level response
+      userData.id = extractId(userData) || extractId(d) || d.sub || userData.id;
+      userData.email = userData.email || effectiveEmail;
+      userData.name = userData.name || effectiveEmail.split('@')[0];
+
+      // Role assignment: memona = Admin, everyone else = Employee (unless they already have a role)
+      let role = userData.role || 'Employee';
+      // Normalize case for consistency in UI checks
+      role = role.trim().charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+
+      if (effectiveEmail === 'memona@hrmis.com' || userData.email?.toLowerCase() === 'memona@hrmis.com') {
+        userData.role = 'Admin';
+      } else {
+        userData.role = role;
+      }
+
+      console.log('[AUTH] Final user set:', JSON.stringify(userData, null, 2));
+      setUser(userData);
+    }
   };
 
   const login = async (credentials) => {
     try {
-      const res = await api.post('/auth/login', credentials);
-      handleLoginSuccess(res, credentials.email);
+      console.log('[AUTH] Logging in with:', credentials.email);
+      // Use raw client to avoid interceptor interference (like old tokens)
+      const res = await raw.post('/auth/login', credentials);
+      await handleLoginSuccess(res, credentials.email);
       return res.data;
     } catch (error) {
-      console.error('Login error:', error);
-      // No guest mode - throw error directly
+      console.error('[AUTH] Login failed:', error?.response?.status, error?.response?.data || error.message);
       throw error;
     }
   };
 
   const registerUser = async (payload) => {
-    const res = await api.post('/auth/register', payload);
-    handleLoginSuccess(res, payload.email);
+    console.log('[AUTH] Registering user:', payload.email);
+    // Use raw client to avoid interceptor interference
+    const res = await raw.post('/auth/register', payload);
+    await handleLoginSuccess(res, payload.email);
     return res.data;
   };
 

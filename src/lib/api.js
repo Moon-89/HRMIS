@@ -22,7 +22,7 @@ const api = axios.create({
 });
 
 // Raw client WITHOUT interceptors
-const raw = axios.create({
+export const raw = axios.create({
   baseURL: BASE_URL,
   withCredentials: false,
   headers: {
@@ -33,6 +33,11 @@ const raw = axios.create({
 
 // Interceptor for Auth Header
 api.interceptors.request.use((config) => {
+  // Skip adding token for login and register routes
+  if (config.url && (config.url.includes('/auth/login') || config.url.includes('/auth/register'))) {
+    return config;
+  }
+
   const token = localStorage.getItem('hrmis_token');
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
